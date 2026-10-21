@@ -1,0 +1,7 @@
+# Engine log lines tools/smoke.sh tolerates. One extended regex per line.
+# Every entry needs a reason. Add sparingly — an allowlist that grows hides bugs.
+
+# Server sent a snapshot into a socket the client had already started closing.
+# A race between the client's close frame and the server's next replication
+# tick; every closed browser tab does this in production. Not a fault.
+Condition "ready_state != STATE_OPEN" is true

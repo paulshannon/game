@@ -1,0 +1,28 @@
+# systemd template unit: one game server process per prototype.
+#   sudo cp deploy/kenney-mp@.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now kenney-mp@2d kenney-mp@3d
+#   journalctl -u kenney-mp@2d -f
+#
+# Expects the dedicated-server export (tools/export.sh server) at
+# /srv/kenney-mp/server/server.x86_64 and a "kenney" system user.
+
+[Unit]
+Description=Kenney multiplayer prototype server (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=kenney
+WorkingDirectory=/srv/kenney-mp/server
+# --bind=127.0.0.1: only Caddy (same host, TLS) talks to the game port.
+ExecStart=/srv/kenney-mp/server/server.x86_64 --headless -- --server --game=%i --bind=127.0.0.1
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

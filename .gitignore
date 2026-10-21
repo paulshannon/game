@@ -1,0 +1,15 @@
+# Godot cache — regenerated from source files and *.import
+.godot/
+
+# Export output
+build/
+
+# Local engine downloads from tools/install_godot.sh
+.tools/
+
+# Smoke-test logs
+.smoke/
+
+# OS / editor noise
+.DS_Store
+*.tmp

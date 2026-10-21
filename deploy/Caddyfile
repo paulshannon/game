@@ -1,0 +1,25 @@
+# Caddy: automatic HTTPS for the web build + TLS termination for the game
+# servers. One host serves everything, so the page's default server URL
+# (wss://<same host>/ws/<game>, see LaunchConfig.from_web_location) just works.
+#
+# Replace play.example.com with your domain (DNS A record → this server).
+# Install: https://caddyserver.com/docs/install   then: sudo systemctl reload caddy
+
+play.example.com {
+	encode zstd gzip   # the .wasm is ~40 MB raw and compresses ~4x
+
+	# WebSocket game servers. handle_path strips the prefix before proxying.
+	# Caddy proxies WebSocket upgrades with no extra config.
+	handle_path /ws/2d* {
+		reverse_proxy 127.0.0.1:9080
+	}
+	handle_path /ws/3d* {
+		reverse_proxy 127.0.0.1:9081
+	}
+
+	# Static web export (tools/export.sh web → copy build/web/* here).
+	handle {
+		root * /srv/kenney-mp/web
+		file_server
+	}
+}

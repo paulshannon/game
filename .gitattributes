@@ -1,0 +1,7 @@
+# Godot text formats must keep LF line endings or diffs and imports get noisy
+* text=auto eol=lf
+*.png binary
+*.glb binary
+*.ogg binary
+*.wav binary
+*.tpz binary
