@@ -17,6 +17,8 @@ var jump: bool = false
 var last_seq: int = -1
 
 var _seq: int = 0
+## Server: seconds since the last accepted input (see Protocol.INPUT_TIMEOUT).
+var _since_input: float = 0.0
 var _send_accum: float = 0.0
 var _bot: BotInput = null
 
@@ -33,6 +35,9 @@ func is_local_owner() -> bool:
 
 
 func _physics_process(delta: float) -> void:
+	if Net.is_online() and multiplayer.is_server():
+		age_input(delta)
+		return
 	if not is_local_owner():
 		return
 	_send_accum += delta
@@ -68,5 +73,21 @@ func submit_input(m: Vector2, j: bool, seq: int) -> void:
 	if seq <= last_seq:
 		return
 	last_seq = seq
+	accept_input(m, j)
+
+
+## Server: store a validated input and restart the staleness timer.
+func accept_input(m: Vector2, j: bool) -> void:
 	move = ArenaSim.sanitize_move(m)
 	jump = j
+	_since_input = 0.0
+
+
+## Server, every physics tick. A client that stops sending (backgrounded tab,
+## stalled network) must not keep its last keys held forever: once input is
+## older than INPUT_TIMEOUT, treat it as released.
+func age_input(delta: float) -> void:
+	_since_input += delta
+	if _since_input >= Protocol.INPUT_TIMEOUT:
+		move = Vector2.ZERO
+		jump = false

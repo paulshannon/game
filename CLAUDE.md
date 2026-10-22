@@ -90,7 +90,7 @@ Clients send **input**. The server simulates and replicates **state**. Clients r
 
 ### How a frame flows (read these files in order)
 1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand).
-2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, seq)` to the server at `Protocol.INPUT_HZ`. On the server, validates sender == owner, drops stale `seq`, sanitizes.
+2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, seq)` to the server at `Protocol.INPUT_HZ`. On the server, validates sender == owner, drops stale `seq`, sanitizes. Input older than `Protocol.INPUT_TIMEOUT` (250 ms) counts as released, so a backgrounded tab or stalled network can't hold a key down forever.
 3. `games/*/player_*.gd` `_physics_process` (server only) — `ArenaSim.step_*` → writes `net_position` / `net_rotation`.
 4. `common/net/replication.gd` — a `MultiplayerSynchronizer` sends those at `Protocol.SNAPSHOT_HZ` (20 Hz). Authority stays with the server.
 5. Player property setters (client) push each snapshot into a `SnapshotBuffer`; `_process` draws at `now - Protocol.INTERP_DELAY` (100 ms ≈ 2 snapshots), so there are almost always two snapshots to blend.
