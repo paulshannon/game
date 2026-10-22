@@ -36,7 +36,8 @@ common/
   game/game_base.gd        spawner, peer join/leave, smoke reporting — base for every game
   game/player_net.gd       PlayerNet: relay + synchronizer + interpolation every player uses
   game/player_slots.gd     PlayerSlots: reusable seats (match-full check, spawn index)
-client/                    SnapshotBuffer (interpolation), InputSetup (actions), Hud
+client/                    SnapshotBuffer/SnapshotClock (interpolation), InputSetup (actions),
+                           TouchControls + TouchStick (on-screen stick/Jump), Hud
 games/<name>/              one folder per prototype + README.md (core loop, players, packs)
 assets/kenney/<pack>/      whole packs, original structure, License kept
 assets/own/                anything we made or modified
@@ -91,7 +92,7 @@ Kenney character GLBs include animations. Drive them from an `AnimationTree` on 
 Clients send **input**. The server simulates and replicates **state**. Clients render state. Never let a client tell the server its position, score or hit result, even in a prototype — retrofitting authority means rewriting every gameplay script.
 
 ### How a frame flows (read these files in order)
-1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand).
+1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand). On touch screens `client/input/touch_controls.gd` presses the **same actions** with analog strength (floating stick on the left half, Jump bottom-right when `GameBase.uses_jump()`), so nothing downstream knows touch exists. Never add a touch-only input path to the protocol.
 2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, seq)` to the server at `Protocol.INPUT_HZ`. On the server, validates sender == owner, drops stale `seq`, sanitizes. Input older than `Protocol.INPUT_TIMEOUT` (250 ms) counts as released, so a backgrounded tab or stalled network can't hold a key down forever.
 3. `games/*/player_*.gd` `_physics_process` (server only) — `ArenaSim.step_*` → writes `net_time` (server clock) + `net_position` / `net_rotation`.
 4. `common/net/replication.gd` — a `MultiplayerSynchronizer` sends those at `Protocol.SNAPSHOT_HZ` (20 Hz). Authority stays with the server.
@@ -130,6 +131,7 @@ For true unreliable transport (fast shooters) or peer-to-peer. Needs a WebSocket
 - **HTTPS pages can only open `wss://`**; the Godot server speaks `ws://`, so production terminates TLS in Caddy and runs servers with `--bind=127.0.0.1`.
 - Compatibility renderer budget: one directional light, no SDFGI/volumetric fog/SSR, `MultiMeshInstance3D` for repeated props, low-poly Kenney kits.
 - Test in Chrome **and** Safari before calling a web change done; Safari usually breaks first.
+- Touch: Godot's default web shell already sets `user-scalable=no` and `touch-action: none` on the canvas, so pinch-zoom and scrolling don't steal gestures. Keep `html/custom_html_shell` empty, or copy those two settings into a custom shell. Automated check: Playwright's `iPad Pro 11 landscape` device in Chromium with CDP `Input.dispatchTouchEvent` exercises real multi-touch against a local server (not a substitute for a real iPad in Safari).
 
 ---
 
