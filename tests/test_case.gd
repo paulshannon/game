@@ -7,6 +7,15 @@ extends RefCounted
 ## outgrow it, drop in GUT or gdUnit4 under addons/ and port these files.
 
 var failures: PackedStringArray = PackedStringArray()
+## Substrings of errors this test expects to be logged (see expect_error).
+var expected_errors: PackedStringArray = PackedStringArray()
+
+
+## Declares that the code under test will log an error containing `fragment`
+## (push_error, an engine ERR_*). Each call consumes one matching error; the
+## test fails if no such error is logged. Any other logged error still fails it.
+func expect_error(fragment: String) -> void:
+	expected_errors.append(fragment)
 
 
 func assert_true(cond: bool, msg: String = "") -> void:
