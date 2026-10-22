@@ -29,6 +29,10 @@ const INTERP_DELAY: float = 0.1
 ## hitch, so ordinary jitter never stops a moving player.
 const INPUT_TIMEOUT: float = 0.25
 
+## Bot clients retry this often after losing the server (smoke tests, server
+## restarts). People get a Rejoin button instead.
+const REJOIN_DELAY: float = 1.0
+
 ## Server-side cap. WebSocket has no built-in connection limit.
 const MAX_PLAYERS: int = 8
 

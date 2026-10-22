@@ -6,6 +6,9 @@ extends Node
 ## server is always a native (usually headless) build.
 
 signal connected(peer_id: int)
+## The connection attempt failed / the server went away. The dead peer stays
+## installed: listeners must free every node that used RPC or replication
+## first, and only then call close() (see shutdown()). main.gd does this.
 signal connection_failed()
 signal disconnected()
 
@@ -74,10 +77,8 @@ func _on_connected() -> void:
 
 
 func _on_failed() -> void:
-	close()
 	connection_failed.emit()
 
 
 func _on_server_disconnected() -> void:
-	close()
 	disconnected.emit()

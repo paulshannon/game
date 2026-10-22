@@ -11,21 +11,26 @@ var _game: GameBase
 var _hud: Hud
 var _elapsed: float = 0.0
 var _finished: bool = false
+var _connects: int = 0
+var _resetting: bool = false
 
 
 func _ready() -> void:
 	_config = LaunchConfig.from_environment()
 	InputSetup.ensure_actions()
 
-	_game = _make_game(_config.game)
-	_game.name = "Game"
-	_game.config = _config
-	add_child(_game)
-
+	_add_game()
 	if _config.is_server:
 		_start_server()
 	else:
 		_start_client()
+
+
+func _add_game() -> void:
+	_game = _make_game(_config.game)
+	_game.name = "Game"
+	_game.config = _config
+	add_child(_game)
 
 
 func _make_game(game: String) -> GameBase:
@@ -51,14 +56,15 @@ func _start_client() -> void:
 	_hud.name = "Hud"
 	add_child(_hud)
 	Net.connected.connect(func(id: int) -> void:
+		_connects += 1
 		_hud.set_status("Connected  —  WASD / arrows to move, Space to jump")
 		print("[client] connected as peer %d" % id))
 	Net.connection_failed.connect(func() -> void:
-		_hud.set_status("Could not reach %s" % _config.url)
-		print("[client] connection failed: %s" % _config.url))
+		print("[client] connection failed: %s" % _config.url)
+		_on_connection_lost("Could not reach %s" % _config.url, "Try again"))
 	Net.disconnected.connect(func() -> void:
-		_hud.set_status("Disconnected from server")
-		print("[client] disconnected"))
+		print("[client] disconnected")
+		_on_connection_lost("Disconnected from server", "Rejoin"))
 
 	if OS.has_feature("web") and not _config.bot:
 		_hud.set_status("Game: %s   Server: %s" % [_config.game, _config.url])
@@ -75,14 +81,43 @@ func _join() -> void:
 		push_error("[client] join failed: %s" % error_string(err))
 
 
+## Tear down the dead session and offer a fresh one. People get a button
+## (any platform); bots retry on their own so smoke tests can restart servers.
+func _on_connection_lost(status: String, button: String) -> void:
+	if _finished or _resetting:
+		return
+	_resetting = true
+	await _reset_game()
+	_resetting = false
+	_hud.set_status(status)
+	if _config.bot:
+		await get_tree().create_timer(Protocol.REJOIN_DELAY).timeout
+		if not _finished:
+			_join()
+	else:
+		_hud.show_start(_join, button)
+
+
+## Same order as quitting (see _shutdown_game): free the game, let a frame
+## pass, and only then swap in the offline peer. The fresh game must be in
+## the tree before the next join, for the same reason as at startup.
+func _reset_game() -> void:
+	_shutdown_game()
+	await get_tree().process_frame
+	Net.close()
+	_add_game()
+
+
 func _process(delta: float) -> void:
-	if _config.run_seconds <= 0.0 or _finished:
+	if _config.run_seconds <= 0.0 or _finished or _resetting:
 		return
 	_elapsed += delta
 	if _elapsed < _config.run_seconds:
 		return
 	_finished = true
 	var report: Dictionary = _game.smoke_report()
+	if not _config.is_server:
+		report["reconnects"] = maxi(_connects - 1, 0)
 	var role: String = "server" if _config.is_server else "client"
 	print("SMOKE_RESULT role=%s game=%s %s" % [role, _config.game, JSON.stringify(report)])
 	var code: int = 0 if bool(report.get("ok", false)) else 1

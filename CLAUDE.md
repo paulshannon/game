@@ -163,7 +163,7 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 - **Clients must add the game scene before connecting.** The server replicates spawns the instant a peer connects; a `MultiplayerSpawner` that isn't in the client's tree yet drops them. `main.gd` does this.
 - **Configure `MultiplayerSpawner` (`spawn_path`, `spawn_function`) before `add_child`.**
 - **With no peer connected, `multiplayer.is_server()` returns true** (offline peer). Decide roles from `LaunchConfig.is_server` and gate client logic with `Net.is_online()`.
-- **Swapping `multiplayer_peer` after nodes have used RPC/replication makes 4.7 release builds log "Attempt to disconnect a nonexistent connection".** On quit, free the game first, then `Net.shutdown()` (closes without swapping). See `main.gd`.
+- **Swapping `multiplayer_peer` after nodes have used RPC/replication makes 4.7 release builds log "Attempt to disconnect a nonexistent connection".** On quit, free the game first, then `Net.shutdown()` (closes without swapping). When the connection drops or fails, `Net` only emits the signal and leaves the dead peer in place; `main.gd` frees the game, waits a frame, calls `Net.close()`, adds a fresh game, then offers Rejoin (bots retry every `Protocol.REJOIN_DELAY`). Debug builds don't print this error, so the smoke test can't catch a wrong order — keep the order.
 - **Server logs `ready_state != STATE_OPEN` when it sends into a socket a client is closing.** Every closed browser tab does this; it's the one entry in `tools/smoke_allowlist.txt`. Anything else in a smoke log is a real failure. Add allowlist entries only with a written reason.
 
 ### Editing scenes and resources
@@ -184,7 +184,7 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 2. Get the core mechanic working with boxes, server-side, with unit tests for the rules in `common/sim` (or a game-specific sim file).
 3. Extend the smoke report for the mechanic; `tools/verify.sh` green.
 4. Import Kenney packs and swap the art.
-5. `tools/export.sh web`, test in two browser tabs plus one phone.
+5. `tools/export.sh web`, test in two browser tabs plus one phone. Restart the server once while connected: the page must show Rejoin and work after it.
 6. Only then: polish, prediction, lobbies.
 
 ### Optional: Godot MCP server
