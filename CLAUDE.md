@@ -34,6 +34,8 @@ common/
                            BotInput, Replication (synchronizer builder)
   sim/arena_sim.gd         pure movement rules — no nodes; server-run, unit-tested
   game/game_base.gd        spawner, peer join/leave, smoke reporting — base for every game
+  game/player_net.gd       PlayerNet: relay + synchronizer + interpolation every player uses
+  game/player_slots.gd     PlayerSlots: reusable seats (match-full check, spawn index)
 client/                    SnapshotBuffer (interpolation), InputSetup (actions), Hud
 games/<name>/              one folder per prototype + README.md (core loop, players, packs)
 assets/kenney/<pack>/      whole packs, original structure, License kept
@@ -103,8 +105,11 @@ Clients send **input**. The server simulates and replicates **state**. Clients r
 - Annotate every RPC fully: `@rpc("any_peer", "call_remote", "unreliable_ordered", 0)`.
 - **WebSocket is TCP**, so `unreliable*` behaves as reliable-ordered and one late packet delays the ones behind it. Keep the annotations correct anyway (they become real on WebRTC) and design for 100–200 ms hitches: interpolate, never snap.
 
+### Player plumbing
+`common/game/player_net.gd` (`PlayerNet`) holds what every player shares: spawn data (peer id, slot, colour), the `InputRelay`, the synchronizer, and client-side buffering and sampling on the server timeline. A player script declares the synced properties (the synchronizer reads them off the node), forwards their setters to `PlayerNet`, and keeps only its sim step and visuals. A new game's player should do the same; don't copy the plumbing.
+
 ### Adding a synced property
-Add it to the property list passed to `Replication.make_synchronizer(...)` in the player's `setup()`. Use the second list (`on_change_props`) for values that rarely change (health, score, team).
+Add it to the property list passed to `Replication.make_synchronizer(...)` (`PlayerNet.SYNCED` for the shared position/rotation ones). Use the second list (`on_change_props`) for values that rarely change (health, score, team).
 
 ### 2D vs 3D
 Same network layer. Sync `Quaternion` for 3D rotation (slerp takes the short way; Euler angles flip), and angles as `float` with `SnapshotBuffer.new(true)` in 2D.
