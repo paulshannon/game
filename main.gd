@@ -38,6 +38,8 @@ func _make_game(game: String) -> GameBase:
 	match game:
 		"3d":
 			return Arena3D.new()
+		"space":
+			return SpaceArena.new()
 		_:
 			return Arena2D.new()
 

@@ -7,6 +7,7 @@ extends RefCounted
 const PORTS: Dictionary = {
 	"2d": 9080,
 	"3d": 9081,
+	"space": 9082,
 }
 
 ## Server simulation runs on the physics tick (project setting: 60 Hz).
