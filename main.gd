@@ -124,16 +124,16 @@ func _process(delta: float) -> void:
 	if not _config.is_server:
 		# Start the close handshake and keep polling briefly so the server sees
 		# a clean disconnect rather than a dropped socket.
-		Net.close_gracefully()
+		Net.close_socket()
 		await get_tree().create_timer(0.5).timeout
 	_shutdown_game()
 	await get_tree().process_frame
-	Net.shutdown()
+	Net.close_socket()
 	get_tree().quit(code)
 
 
 ## Free the game (and its MultiplayerSpawner) in a normal frame, then close
-## the socket without swapping peers (see Net.shutdown). Tearing these down in
+## the socket without swapping peers (see Net.close_socket). Tearing these down in
 ## the other order makes Godot 4.7 release builds log a spurious
 ## "Attempt to disconnect a nonexistent connection" error.
 func _shutdown_game() -> void:

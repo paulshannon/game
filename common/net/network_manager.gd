@@ -8,7 +8,7 @@ extends Node
 signal connected(peer_id: int)
 ## The connection attempt failed / the server went away. The dead peer stays
 ## installed: listeners must free every node that used RPC or replication
-## first, and only then call close() (see shutdown()). main.gd does this.
+## first, and only then call close() (see close_socket()). main.gd does this.
 signal connection_failed()
 signal disconnected()
 
@@ -41,19 +41,15 @@ func join(url: String) -> Error:
 	return OK
 
 
-## Starts the WebSocket close handshake but keeps the peer installed, so the
-## multiplayer API keeps polling it until the handshake completes and the
-## server sees a clean disconnect. Use when a client leaves on purpose.
-func close_gracefully() -> void:
-	if _peer != null:
-		_peer.close()
-
-
-## Close the socket without swapping in an OfflineMultiplayerPeer. Use right
-## before quitting: replacing multiplayer_peer after nodes have taken part in
-## RPC/replication makes Godot 4.7 release builds log "Attempt to disconnect a
-## nonexistent connection ... tree_exited". Harmless, but noisy.
-func shutdown() -> void:
+## Starts the WebSocket close handshake but keeps the peer installed (no
+## OfflineMultiplayerPeer swap). Safe to call more than once. Two uses:
+## - A client leaving on purpose: the multiplayer API keeps polling the peer
+##   until the handshake completes, so the server sees a clean disconnect.
+## - Right before quitting: replacing multiplayer_peer after nodes have taken
+##   part in RPC/replication makes Godot 4.7 release builds log "Attempt to
+##   disconnect a nonexistent connection ... tree_exited". Harmless, but noisy.
+## Use close() instead only once every node that used RPC/replication is gone.
+func close_socket() -> void:
 	if _peer != null:
 		_peer.close()
 
