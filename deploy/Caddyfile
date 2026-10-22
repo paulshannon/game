@@ -16,6 +16,9 @@ play.example.com {
 	handle_path /ws/3d* {
 		reverse_proxy 127.0.0.1:9081
 	}
+	handle_path /ws/space* {
+		reverse_proxy 127.0.0.1:9082
+	}
 
 	# Static web export (tools/export.sh web → copy build/web/* here).
 	handle {

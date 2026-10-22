@@ -37,8 +37,9 @@ common/
   game/player_net.gd       PlayerNet: relay + synchronizer + interpolation every player uses
   game/player_slots.gd     PlayerSlots: reusable seats (match-full check, spawn index)
 client/                    SnapshotBuffer/SnapshotClock (interpolation), InputSetup (actions),
-                           TouchControls + TouchStick (on-screen stick/Jump), Hud
-games/<name>/              one folder per prototype + README.md (core loop, players, packs)
+                           TouchControls + TouchStick (on-screen stick/Jump), Hud, GameMenu
+games/<name>/              one folder per prototype + README.md (core loop, players, packs):
+                           box_arena_2d, box_arena_3d, space (2D, has a main menu)
 assets/kenney/<pack>/      whole packs, original structure, License kept
 assets/own/                anything we made or modified
 tests/                     run_tests.tscn + TestCase + ErrorCapture + unit/test_*.gd;
@@ -188,7 +189,9 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 - If the tests outgrow `TestCase`, add GUT or gdUnit4 under `addons/` and port them.
 
 ### Workflow for a new prototype
-1. Copy a `games/box_arena_*` folder, rename classes, add a branch in `main.gd::_make_game` and a port in `Protocol.PORTS`. Write the game's `README.md` (core loop, players, 2D/3D, Kenney packs).
+1. Copy a `games/box_arena_*` folder, rename classes, add a branch in `main.gd::_make_game` and a port in `Protocol.PORTS` (then the game in `tools/smoke.sh`'s `all` list, a `/ws/<game>` route in `deploy/Caddyfile` and the instance in `deploy/`). Write the game's `README.md` (core loop, players, 2D/3D, Kenney packs).
+   - A start menu: subclass `GameMenu` (`client/ui/game_menu.gd`) and return it from `GameBase.make_menu()`. `main.gd` shows it at startup instead of the join button and again after a lost connection (with "Rejoin"/"Try again"); bots skip it. `games/space/` is the example, themed from a Kenney UI pack in code (`SpaceUi`).
+   - Controls created in code and anchored in `_ready()` (already in the tree) need `set_anchors_and_offsets_preset()`: plain `set_anchors_preset()` keeps the current size, which is zero.
 2. Get the core mechanic working with boxes, server-side, with unit tests for the rules in `common/sim` (or a game-specific sim file).
 3. Extend the smoke report for the mechanic; `tools/verify.sh` green.
 4. Import Kenney packs and swap the art.

@@ -1,7 +1,7 @@
 # systemd template unit: one game server process per prototype.
 #   sudo cp deploy/kenney-mp@.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now kenney-mp@2d kenney-mp@3d
+#   sudo systemctl enable --now kenney-mp@2d kenney-mp@3d kenney-mp@space
 #   journalctl -u kenney-mp@2d -f
 #
 # Expects the dedicated-server export (tools/export.sh server) at

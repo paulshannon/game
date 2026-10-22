@@ -5,7 +5,7 @@
 #   - no ERROR / SCRIPT ERROR lines appear in any log, apart from the
 #     documented benign ones in tools/smoke_allowlist.txt
 #
-# Usage: tools/smoke.sh [2d|3d|all] [seconds=8] [clients=2]
+# Usage: tools/smoke.sh [2d|3d|space|all] [seconds=8] [clients=2]
 #        SERVER_BIN=build/server/server.x86_64 tools/smoke.sh   # test the export
 #        SMOKE_RESTART=1 tools/smoke.sh 2d   # kill + restart the server mid-run;
 #            bots must reconnect and play on (each reports "reconnects":1)
@@ -104,6 +104,7 @@ status=0
 if [[ "$GAME" == "all" ]]; then
   $run 2d || status=1
   $run 3d || status=1
+  $run space || status=1
 else
   $run "$GAME" || status=1
 fi
