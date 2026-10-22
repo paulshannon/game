@@ -7,7 +7,9 @@
 #
 # Usage: tools/smoke.sh [2d|3d|all] [seconds=8] [clients=2]
 #        SERVER_BIN=build/server/server.x86_64 tools/smoke.sh   # test the export
-# Logs:  .smoke/<game>/{server,client1,...}.log
+#        SMOKE_RESTART=1 tools/smoke.sh 2d   # kill + restart the server mid-run;
+#            bots must reconnect and play on (each reports "reconnects":1)
+# Logs:  .smoke/<game>/{server,client1,...}.log  (restart: .smoke/<game>-restart/)
 source "$(dirname "$0")/_godot.sh"
 cd "$ROOT"
 
@@ -15,32 +17,73 @@ GAME="${1:-all}"
 SECS="${2:-8}"
 CLIENTS="${3:-2}"
 
+# SERVER_BIN=build/server/server.x86_64 tests the exported dedicated server
+# (the production artifact) instead of running the server from source.
+server_cmd=("$GODOT" --headless --path .)
+[[ -n "${SERVER_BIN:-}" ]] && server_cmd=("$SERVER_BIN" --headless)
+
+start_server() {  # game seconds log
+  ${_TO[@]+"${_TO[@]}"} "${server_cmd[@]}" -- --server --game="$1" \
+      --run-seconds="$2" --expect-peers="$CLIENTS" > "$3" 2>&1 &
+}
+
+start_clients() {  # game seconds dir → appends to pids
+  for i in $(seq 1 "$CLIENTS"); do
+    godot_run --headless --path . -- --client --game="$1" --bot \
+        --run-seconds="$2" --expect-peers="$CLIENTS" > "$3/client$i.log" 2>&1 &
+    pids+=($!)
+  done
+}
+
 run_one() {
   local game="$1"
   local dir="$ROOT/.smoke/$game"
   rm -rf "$dir"; mkdir -p "$dir"; touch "$ROOT/.smoke/.gdignore"
-  local server_secs=$((SECS + 4))
 
-  # SERVER_BIN=build/server/server.x86_64 tests the exported dedicated server
-  # (the production artifact) instead of running the server from source.
-  local server_cmd=("$GODOT" --headless --path .)
-  [[ -n "${SERVER_BIN:-}" ]] && server_cmd=("$SERVER_BIN" --headless)
-  ${_TO[@]+"${_TO[@]}"} "${server_cmd[@]}" -- --server --game="$game" \
-      --run-seconds="$server_secs" --expect-peers="$CLIENTS" > "$dir/server.log" 2>&1 &
+  start_server "$game" $((SECS + 4)) "$dir/server.log"
   local spid=$!
   sleep 2   # let the server bind its port
-
-  local pids=()
-  for i in $(seq 1 "$CLIENTS"); do
-    godot_run --headless --path . -- --client --game="$game" --bot \
-        --run-seconds="$SECS" --expect-peers="$CLIENTS" > "$dir/client$i.log" 2>&1 &
-    pids+=($!)
-  done
+  pids=()
+  start_clients "$game" "$SECS" "$dir"
 
   local fail=0
   for p in "${pids[@]}"; do wait "$p" || fail=1; done
   wait "$spid" || fail=1
+  check_logs "$dir" "$game" $fail
+}
 
+# Server A runs, then is killed (as a crash or a systemd restart would). The
+# bots see the disconnect, retry until server B is up, rejoin, and must play
+# on: their SMOKE_RESULT comes from the rebuilt game, so "ok" proves the
+# rejoined session works. Server A's log is not checked (it was killed).
+run_restart() {
+  local game="$1"
+  local dir="$ROOT/.smoke/$game-restart"
+  rm -rf "$dir"; mkdir -p "$dir"; touch "$ROOT/.smoke/.gdignore"
+  local client_secs=$((SECS + 8))
+
+  start_server "$game" 60 "$dir/killed-server.txt"
+  local apid=$!
+  sleep 2
+  pids=()
+  start_clients "$game" "$client_secs" "$dir"
+  sleep $((SECS / 2 + 1))
+  kill "$apid" 2>/dev/null; wait "$apid" 2>/dev/null || true
+  sleep 2   # bots notice, reset, and start retrying
+  start_server "$game" $((client_secs - SECS / 2 + 2)) "$dir/server.log"
+  local bpid=$!
+
+  local fail=0
+  for p in "${pids[@]}"; do wait "$p" || fail=1; done
+  wait "$bpid" || fail=1
+  for log in "$dir"/client*.log; do
+    grep -q '"reconnects":1' "$log" || { echo "  ✗ $(basename "$log"): did not reconnect exactly once"; fail=1; }
+  done
+  check_logs "$dir" "$game (server restart)" $fail
+}
+
+check_logs() {  # dir label fail
+  local dir="$1" label="$2" fail="$3"
   for log in "$dir"/*.log; do
     grep -q '"ok":true' "$log" || { echo "  ✗ $(basename "$log"): no passing SMOKE_RESULT"; fail=1; }
     local errors
@@ -51,15 +94,17 @@ run_one() {
     fi
   done
   grep -h SMOKE_RESULT "$dir"/*.log | sed 's/^/  /'
-  if [[ $fail -eq 0 ]]; then echo "SMOKE $game: PASS"; else echo "SMOKE $game: FAIL (logs in .smoke/$game/)"; fi
+  if [[ $fail -eq 0 ]]; then echo "SMOKE $label: PASS"; else echo "SMOKE $label: FAIL (logs in ${dir#$ROOT/}/)"; fi
   return $fail
 }
 
+run=run_one
+[[ -n "${SMOKE_RESTART:-}" ]] && run=run_restart
 status=0
 if [[ "$GAME" == "all" ]]; then
-  run_one 2d || status=1
-  run_one 3d || status=1
+  $run 2d || status=1
+  $run 3d || status=1
 else
-  run_one "$GAME" || status=1
+  $run "$GAME" || status=1
 fi
 exit $status

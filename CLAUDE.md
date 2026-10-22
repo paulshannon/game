@@ -148,7 +148,8 @@ For true unreliable transport (fast shooters) or peer-to-peer. Needs a WebSocket
 | `tools/check.sh` | import, then compile **every** `.gd` with autoloads loaded |
 | `tools/test.sh` | unit tests in `tests/unit/` |
 | `tools/smoke.sh [2d\|3d\|all] [secs] [clients]` | headless server + N bot clients over real WebSockets; logs in `.smoke/` |
-| `tools/verify.sh` | check → test → smoke 2D+3D. **Definition of done.** |
+| `SMOKE_RESTART=1 tools/smoke.sh 2d` | kills and restarts the server mid-run; bots must rejoin and play on |
+| `tools/verify.sh` | check → test → smoke 2D+3D → restart smoke 2D. **Definition of done.** |
 | `tools/export.sh [web\|server\|all]` | builds into `build/` |
 | `SERVER_BIN=build/server/server.x86_64 tools/smoke.sh` | smoke-test the exported server (what production runs) |
 | `tools/run_server.sh 2d` / `tools/run_client.sh 2d [url] [--bot]` | manual play |
