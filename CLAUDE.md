@@ -38,7 +38,8 @@ client/                    SnapshotBuffer (interpolation), InputSetup (actions),
 games/<name>/              one folder per prototype + README.md (core loop, players, packs)
 assets/kenney/<pack>/      whole packs, original structure, License kept
 assets/own/                anything we made or modified
-tests/                     run_tests.tscn + TestCase + unit/test_*.gd
+tests/                     run_tests.tscn + TestCase + ErrorCapture + unit/test_*.gd;
+                           fixtures/ = runner self-check cases; keep them out of unit/ (they fail on purpose)
 tools/                     every command (see §7) — run these, don't improvise
 deploy/                    Caddyfile (HTTPS + wss), systemd unit, deploy README
 docs/                      SESSION_NOTES.md + screenshots (has .gdignore; not imported or exported)
@@ -172,6 +173,9 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 
 ### Testing
 - Unit tests: `tests/unit/test_<thing>.gd`, `extends TestCase`, methods named `test_*`, using `assert_true/false/eq/near`. Test `common/sim`, `client/net` and parsing directly — no scene tree needed.
+- A test also fails if any engine or script error is logged while it runs (`push_error`, null deref, bad cast), including after an `await` and in deferred work it queued. Errors logged outside a test (loading a file) fail the run too. A runtime error aborts the method without failing an assert, so the runner captures errors with a `Logger` (`tests/error_capture.gd`).
+- Testing a path that *should* log an error: call `expect_error("fragment")` first. Each call consumes one matching error; an unmet expectation fails the test.
+- Every run starts with a self-check against `tests/fixtures/` proving each failure mode is still caught; the `SCRIPT ERROR`/`ERROR` lines it prints are expected. A test method that awaits forever hangs until `GODOT_TIMEOUT`.
 - Multiplayer: the smoke test is the integration test. Bots (`--bot`) drive real input through the full loop; each process prints `SMOKE_RESULT ... {"ok":true}`. The server checks every player moved; each client checks it saw its own and a remote player move. When you add a mechanic, extend `GameBase.smoke_report()` (or the game's override) so the smoke test proves the mechanic works over the network.
 - If the tests outgrow `TestCase`, add GUT or gdUnit4 under `addons/` and port them.
 
