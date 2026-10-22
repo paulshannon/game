@@ -69,7 +69,7 @@ func _start_client() -> void:
 			_menu.name = "Menu"
 			add_child(_menu)
 			_menu.play_requested.connect(_join)
-	var help: String = "WASD / arrows to move, Space to jump"
+	var help: String = "WASD / arrows to move" + (", Space to jump" if _game.uses_jump() else "")
 	if touch:
 		help = "drag on the left to move" + (", tap Jump to jump" if _game.uses_jump() else "")
 	Net.connected.connect(func(id: int) -> void:
