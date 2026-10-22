@@ -9,6 +9,7 @@ extends Node
 var _config: LaunchConfig
 var _game: GameBase
 var _hud: Hud
+var _menu: GameMenu
 var _elapsed: float = 0.0
 var _finished: bool = false
 var _connects: int = 0
@@ -63,6 +64,11 @@ func _start_client() -> void:
 		var controls := TouchControls.new(_game.uses_jump())
 		controls.name = "TouchControls"
 		add_child(controls)
+		_menu = _game.make_menu()
+		if _menu != null:
+			_menu.name = "Menu"
+			add_child(_menu)
+			_menu.play_requested.connect(_join)
 	var help: String = "WASD / arrows to move, Space to jump"
 	if touch:
 		help = "drag on the left to move" + (", tap Jump to jump" if _game.uses_jump() else "")
@@ -77,7 +83,9 @@ func _start_client() -> void:
 		print("[client] disconnected")
 		_on_connection_lost("Disconnected from server", "Rejoin"))
 
-	if OS.has_feature("web") and not _config.bot:
+	if _menu != null:
+		_menu.show_menu()
+	elif OS.has_feature("web") and not _config.bot:
 		_hud.set_status("Game: %s   Server: %s" % [_config.game, _config.url])
 		_hud.show_start(_join, "Tap to join" if touch else "Click to join")
 	else:
@@ -105,6 +113,8 @@ func _on_connection_lost(status: String, button: String) -> void:
 		await get_tree().create_timer(Protocol.REJOIN_DELAY).timeout
 		if not _finished:
 			_join()
+	elif _menu != null:
+		_menu.show_menu(status, button)
 	else:
 		_hud.show_start(_join, button)
 

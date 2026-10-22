@@ -67,6 +67,12 @@ func uses_jump() -> bool:
 	return false
 
 
+## A start menu for people (not bots), or null for the plain join button.
+## Called once on clients; the menu outlives game rebuilds after a disconnect.
+func make_menu() -> GameMenu:
+	return null
+
+
 func _spawn_position(_index: int) -> Variant:
 	return null
 
