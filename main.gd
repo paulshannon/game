@@ -55,9 +55,20 @@ func _start_client() -> void:
 	_hud = Hud.new()
 	_hud.name = "Hud"
 	add_child(_hud)
+	var touch: bool = DisplayServer.is_touchscreen_available()
+	if not _config.bot:
+		# Child of Main, not the game, so it survives the game being rebuilt
+		# after a disconnect. Harmless on non-touch screens: draws nothing
+		# until a touch arrives.
+		var controls := TouchControls.new(_game.uses_jump())
+		controls.name = "TouchControls"
+		add_child(controls)
+	var help: String = "WASD / arrows to move, Space to jump"
+	if touch:
+		help = "drag on the left to move" + (", tap Jump to jump" if _game.uses_jump() else "")
 	Net.connected.connect(func(id: int) -> void:
 		_connects += 1
-		_hud.set_status("Connected  —  WASD / arrows to move, Space to jump")
+		_hud.set_status("Connected  —  " + help)
 		print("[client] connected as peer %d" % id))
 	Net.connection_failed.connect(func() -> void:
 		print("[client] connection failed: %s" % _config.url)
@@ -68,7 +79,7 @@ func _start_client() -> void:
 
 	if OS.has_feature("web") and not _config.bot:
 		_hud.set_status("Game: %s   Server: %s" % [_config.game, _config.url])
-		_hud.show_start(_join)
+		_hud.show_start(_join, "Tap to join" if touch else "Click to join")
 	else:
 		_join()
 

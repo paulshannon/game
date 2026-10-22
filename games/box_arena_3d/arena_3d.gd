@@ -58,6 +58,10 @@ func _process(delta: float) -> void:
 	_camera.look_at(_camera.position - CAMERA_OFFSET)
 
 
+func uses_jump() -> bool:
+	return true
+
+
 func _spawn_position(index: int) -> Variant:
 	var a: float = index * TAU / Protocol.MAX_PLAYERS
 	return Vector3(cos(a), 0.0, sin(a)) * 4.0

@@ -62,6 +62,11 @@ func _build_client_world() -> void:
 	pass
 
 
+## Whether the game has a jump (shows the touch Jump button).
+func uses_jump() -> bool:
+	return false
+
+
 func _spawn_position(_index: int) -> Variant:
 	return null
 
