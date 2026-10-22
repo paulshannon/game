@@ -23,6 +23,12 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
+# The sandbox above leaves no writable home, but Godot creates user:// (and
+# its log file) under $HOME/.local/share at startup — and 4.7.1 segfaults if
+# it can't. Give each instance its own writable state dir, created by systemd
+# and owned by User=: /var/lib/kenney-mp/<game>.
+StateDirectory=kenney-mp/%i
+Environment=HOME=/var/lib/kenney-mp/%i
 
 [Install]
 WantedBy=multi-user.target
