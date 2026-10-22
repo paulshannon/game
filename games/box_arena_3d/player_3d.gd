@@ -18,23 +18,30 @@ var color: Color = Color.WHITE
 var traveled: float = 0.0
 var rendered_distance: float = 0.0
 
+## Server clock when the values below were simulated (see BoxPlayer2D).
+var net_time: float = 0.0:
+	set(v):
+		net_time = v
+		if not _server_side:
+			_clock.observe(v, _now())
 var net_position: Vector3 = Vector3.ZERO:
 	set(v):
 		net_position = v
-		if not _server_side:
-			_pos_buf.push(_now(), v)
+		if not _server_side and net_time > 0.0:
+			_pos_buf.push(net_time, v)
 ## Quaternion, not Euler: slerp takes the short way round and never flips.
 var net_rotation: Quaternion = Quaternion.IDENTITY:
 	set(v):
 		net_rotation = v
-		if not _server_side:
-			_rot_buf.push(_now(), v)
+		if not _server_side and net_time > 0.0:
+			_rot_buf.push(net_time, v)
 
 var _server_side: bool = false
 var _state := ArenaSim.State3D.new()
 var _relay: InputRelay
 var _body: Node3D
 var _label: Label3D
+var _clock := SnapshotClock.new()
 var _pos_buf := SnapshotBuffer.new()
 var _rot_buf := SnapshotBuffer.new()
 
@@ -53,7 +60,7 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool) -> void:
 	_relay.owner_peer = peer_id
 	_relay.use_bot = use_bot
 	add_child(_relay)
-	add_child(Replication.make_synchronizer(PackedStringArray(["net_position", "net_rotation"])))
+	add_child(Replication.make_synchronizer(PackedStringArray(["net_time", "net_position", "net_rotation"])))
 
 	if not _server_side:
 		_build_visuals()
@@ -72,14 +79,15 @@ func _physics_process(delta: float) -> void:
 	ArenaSim.step_3d(_state, _relay.move, _relay.jump, delta)
 	traveled += before.distance_to(_state.position)
 	net_rotation = ArenaSim.facing_from_velocity(_state.velocity, net_rotation)
+	net_time = _now()
 	net_position = _state.position
 	position = net_position
 
 
 func _process(_delta: float) -> void:
-	if _server_side or _pos_buf.is_empty():
+	if _server_side or _pos_buf.is_empty() or not _clock.is_synced():
 		return
-	var t: float = _now() - Protocol.INTERP_DELAY
+	var t: float = _clock.render_time(_now())
 	var p: Vector3 = _pos_buf.sample(t)
 	rendered_distance += position.distance_to(p)
 	position = p

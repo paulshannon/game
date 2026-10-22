@@ -21,22 +21,31 @@ var traveled: float = 0.0
 var rendered_distance: float = 0.0
 
 # Replicated state. Setters feed the interpolation buffers on clients.
+## Server clock when the values below were simulated. Listed first in the
+## synchronizer, which applies properties in list order, so it is set before
+## the values it stamps.
+var net_time: float = 0.0:
+	set(v):
+		net_time = v
+		if not _server_side:
+			_clock.observe(v, _now())
 var net_position: Vector2 = Vector2.ZERO:
 	set(v):
 		net_position = v
-		if not _server_side:
-			_pos_buf.push(_now(), v)
+		if not _server_side and net_time > 0.0:
+			_pos_buf.push(net_time, v)
 var net_rotation: float = 0.0:
 	set(v):
 		net_rotation = v
-		if not _server_side:
-			_rot_buf.push(_now(), v)
+		if not _server_side and net_time > 0.0:
+			_rot_buf.push(net_time, v)
 
 var _server_side: bool = false
 var _state := ArenaSim.State2D.new()
 var _relay: InputRelay
 var _body: Node2D
 var _label: Label
+var _clock := SnapshotClock.new()
 var _pos_buf := SnapshotBuffer.new()
 var _rot_buf := SnapshotBuffer.new(true)
 
@@ -56,7 +65,7 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool) -> void:
 	_relay.owner_peer = peer_id
 	_relay.use_bot = use_bot
 	add_child(_relay)
-	add_child(Replication.make_synchronizer(PackedStringArray(["net_position", "net_rotation"])))
+	add_child(Replication.make_synchronizer(PackedStringArray(["net_time", "net_position", "net_rotation"])))
 
 	if not _server_side:
 		_build_visuals()
@@ -76,14 +85,15 @@ func _physics_process(delta: float) -> void:
 	traveled += before.distance_to(_state.position)
 	if _state.velocity.length_squared() > 1.0:
 		net_rotation = _state.velocity.angle()
+	net_time = _now()
 	net_position = _state.position
 	position = net_position
 
 
 func _process(_delta: float) -> void:
-	if _server_side or _pos_buf.is_empty():
+	if _server_side or _pos_buf.is_empty() or not _clock.is_synced():
 		return
-	var t: float = _now() - Protocol.INTERP_DELAY
+	var t: float = _clock.render_time(_now())
 	var p: Vector2 = _pos_buf.sample(t)
 	rendered_distance += position.distance_to(p)
 	position = p
