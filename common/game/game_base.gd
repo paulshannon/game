@@ -17,7 +17,8 @@ var spawner: MultiplayerSpawner
 
 var _slots := PlayerSlots.new()
 
-# Smoke-test bookkeeping (cheap; harmless in normal runs).
+# Smoke-test bookkeeping. The per-frame client part only runs during a smoke
+# run (config.run_seconds > 0), off the web main thread in normal play.
 var _peers_seen: Dictionary = {}
 var _max_simultaneous: int = 0
 var _final_travel: Dictionary = {}
@@ -119,7 +120,7 @@ var _remote_moved: bool = false
 
 
 func _process(_delta: float) -> void:
-	if config.is_server or not Net.is_online():
+	if config.is_server or config.run_seconds <= 0.0 or not Net.is_online():
 		return
 	# Latch results every frame: by report time other clients may already
 	# have left and their player nodes been despawned.
