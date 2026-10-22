@@ -15,7 +15,7 @@ var config: LaunchConfig
 var players_root: Node
 var spawner: MultiplayerSpawner
 
-var _next_index: int = 0
+var _slots := PlayerSlots.new()
 
 # Smoke-test bookkeeping (cheap; harmless in normal runs).
 var _peers_seen: Dictionary = {}
@@ -73,27 +73,36 @@ func _create_player(_data: Dictionary) -> Node:
 # --- server -------------------------------------------------------------------
 
 func _on_peer_connected(id: int) -> void:
-	if players_root.get_child_count() >= Protocol.MAX_PLAYERS:
+	var index: int = _slots.claim(id)
+	if index == -1:
 		print("[server] rejecting peer %d: match full" % id)
 		multiplayer.multiplayer_peer.disconnect_peer(id)
 		return
-	var index: int = _next_index
-	_next_index += 1
 	# Golden-ratio hue spacing gives distinct colors for any player count.
 	var hue: float = fmod(index * 0.61803398875, 1.0)
 	spawner.spawn({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)})
 	_peers_seen[id] = true
-	_max_simultaneous = maxi(_max_simultaneous, players_root.get_child_count())
-	print("[server] peer %d joined (%d in match)" % [id, players_root.get_child_count()])
+	_max_simultaneous = maxi(_max_simultaneous, _slots.count())
+	print("[server] peer %d joined slot %d (%d in match)" % [id, index, _slots.count()])
 
 
 func _on_peer_disconnected(id: int) -> void:
+	_slots.release(id)
 	var p: Node = players_root.get_node_or_null(str(id))
 	if p != null:
 		_final_travel[id] = float(p.get("traveled"))
 		# Removing the node is enough: the spawner replicates the despawn.
 		p.queue_free()
-	print("[server] peer %d left" % id)
+	print("[server] peer %d left (%d in match)" % [id, _slots.count()])
+
+
+## Players still in the match: excludes ones queue_free'd this frame.
+func active_players() -> Array[Node]:
+	var out: Array[Node] = []
+	for p: Node in players_root.get_children():
+		if not p.is_queued_for_deletion():
+			out.append(p)
+	return out
 
 
 func _spawn_from_data(data: Variant) -> Node:
@@ -114,9 +123,10 @@ func _process(_delta: float) -> void:
 		return
 	# Latch results every frame: by report time other clients may already
 	# have left and their player nodes been despawned.
-	_max_simultaneous = maxi(_max_simultaneous, players_root.get_child_count())
+	var players: Array[Node] = active_players()
+	_max_simultaneous = maxi(_max_simultaneous, players.size())
 	var own: Node = local_player()
-	for p: Node in players_root.get_children():
+	for p: Node in players:
 		_peers_seen[p.name] = true
 		if float(p.get("rendered_distance")) > 1.0:
 			if p == own:
@@ -128,7 +138,7 @@ func _process(_delta: float) -> void:
 func smoke_report() -> Dictionary:
 	if config.is_server:
 		var travel: Dictionary = _final_travel.duplicate()
-		for p: Node in players_root.get_children():
+		for p: Node in active_players():
 			travel[int(str(p.name))] = float(p.get("traveled"))
 		var all_moved: bool = not travel.is_empty()
 		for id: Variant in travel:
