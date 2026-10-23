@@ -1,10 +1,29 @@
 name: ci
 
+# Git-flow (see README "Branches and releases"): feature branches are checked
+# through their pull requests; the long-lived branches on every push. The
+# release workflow calls this file (workflow_call) so a release re-runs the
+# exact same verification on the tagged commit.
 on:
   push:
+    branches: [main, develop, 'release/**', 'hotfix/**']
   pull_request:
+  workflow_call:
 
 jobs:
+  branch-rules:
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only release/* and hotfix/* branches may merge into main
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            release/v*|hotfix/v*) echo "ok: $HEAD_REF → main" ;;
+            *) echo "::error::$HEAD_REF can't merge into main. Merge it into develop; main only takes release/vX.Y.Z and hotfix/vX.Y.Z branches."; exit 1 ;;
+          esac
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -30,6 +49,17 @@ jobs:
 
       - name: Smoke test the exported server binary
         run: SERVER_BIN=build/server/server.x86_64 tools/smoke.sh all 8 2
+
+      # The Docker image (deploy/docker/Dockerfile) wraps that same binary.
+      # Release tags push it to ghcr.io (release.yml); here it's built and
+      # smoke-tested on every push/PR so a broken image never gets that far.
+      - name: Build server image
+        run: docker build -f deploy/docker/Dockerfile -t game-server:ci .
+
+      - name: Smoke test the server image (all games + a server restart)
+        run: |
+          SERVER_IMAGE=game-server:ci tools/smoke.sh all 8 2
+          SERVER_IMAGE=game-server:ci SMOKE_RESTART=1 tools/smoke.sh 2d 8 2
 
       - uses: actions/upload-artifact@v4
         with:

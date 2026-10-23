@@ -1,0 +1,170 @@
+name: release
+
+# Runs when a vX.Y.Z tag is pushed (made on main after merging a release/ or
+# hotfix/ branch). Nothing is published unless every step before it passed:
+#   check   tag == project.godot version, tagged commit is on main, CHANGELOG has notes
+#   verify  the full ci.yml run on the tagged commit (verify.sh, exports, exported-server smoke)
+#   release GitHub Release with the web build, server binary and SHA256SUMS
+#   image   ghcr.io/<owner>/game-server:X.Y.Z, :X.Y and :latest (same binary)
+#   pages   the release's web build + a landing page on GitHub Pages
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: version
+        name: Tag matches the project version, is on main, and has notes
+        run: |
+          v="$(tools/version.sh)"
+          if [[ "$GITHUB_REF_NAME" != "v$v" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match project.godot version $v"; exit 1
+          fi
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME is not on main. Tag the merge of release/v$v into main."; exit 1
+          fi
+          tools/release_notes.sh "$v" > /dev/null
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+  verify:
+    needs: check
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: [check, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      V: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # The exact files the verify job built and smoke-tested.
+      - uses: actions/download-artifact@v4
+        with:
+          name: builds
+          path: build
+
+      - name: Package assets
+        run: |
+          mkdir dist
+          (cd build/web && zip -qr "../../dist/game-web-v$V.zip" .)
+          cp build/server/server.x86_64 "dist/game-server-linux-x86_64-v$V"
+          chmod +x "dist/game-server-linux-x86_64-v$V"
+          (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
+          tools/release_notes.sh "$V" > notes.md
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag --title "v$V" --notes-file notes.md
+          echo "Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    needs: [check, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The binary verify exported and smoke-tested; verify also built and
+      # smoke-tested an image from it with this same Dockerfile.
+      - uses: actions/download-artifact@v4
+        with:
+          name: builds
+          path: build
+
+      - id: name
+        name: Image name (registry paths must be lowercase)
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/game-server" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Tag vX.Y.Z → X.Y.Z, X.Y and latest.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.check.outputs.version }}
+            REVISION=${{ github.sha }}
+
+      - name: Summary
+        run: |
+          echo "Image: ${{ steps.name.outputs.image }}:${{ needs.check.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+
+  pages:
+    needs: [check, verify, release]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: builds
+          path: build
+
+      # GAME_SERVER_URL (repo variable, e.g. wss://game.example.com) is where
+      # the published games connect; see tools/make_site.sh.
+      - name: Build site
+        env:
+          GAME_SERVER_URL: ${{ vars.GAME_SERVER_URL }}
+        run: tools/make_site.sh build/web site "${{ needs.check.outputs.version }}"
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Summary
+        run: |
+          echo "Pages: ${{ steps.deploy.outputs.page_url }}" >> "$GITHUB_STEP_SUMMARY"

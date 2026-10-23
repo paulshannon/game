@@ -1,0 +1,25 @@
+# Caddy for the Docker Compose deployment (deploy/docker-compose.yml).
+# Same routes as deploy/Caddyfile, but the game servers are the compose
+# services (each listens on 9080 inside its container).
+#
+# DOMAIN=play.example.com → automatic HTTPS, browsers use wss://DOMAIN/ws/<game>.
+# DOMAIN=:80              → plain HTTP, for a local test without a domain.
+{$DOMAIN} {
+	encode zstd gzip   # the .wasm is ~40 MB raw and compresses ~4x
+	# WebSocket game servers. handle_path strips the prefix before proxying;
+	# Caddy proxies WebSocket upgrades with no extra config.
+	handle_path /ws/2d* {
+		reverse_proxy game-2d:9080
+	}
+	handle_path /ws/3d* {
+		reverse_proxy game-3d:9080
+	}
+	handle_path /ws/space* {
+		reverse_proxy game-space:9080
+	}
+	# Static web export (unzip a release's game-web-vX.Y.Z.zip into WEB_DIR).
+	handle {
+		root * /srv/web
+		file_server
+	}
+}

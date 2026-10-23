@@ -7,6 +7,9 @@
 #
 # Usage: tools/smoke.sh [2d|3d|space|all] [seconds=8] [clients=2]
 #        SERVER_BIN=build/server/server.x86_64 tools/smoke.sh   # test the export
+#        SERVER_IMAGE=game-server:ci tools/smoke.sh   # test the Docker image
+#            (deploy/docker/Dockerfile; the container's 9080 is published on
+#            127.0.0.1:<the game's Protocol port>, so clients are unchanged)
 #        SMOKE_RESTART=1 tools/smoke.sh 2d   # kill + restart the server mid-run;
 #            bots must reconnect and play on (each reports "reconnects":1)
 # Logs:  .smoke/<game>/{server,client1,...}.log  (restart: .smoke/<game>-restart/)
@@ -22,7 +25,19 @@ CLIENTS="${3:-2}"
 server_cmd=("$GODOT" --headless --path .)
 [[ -n "${SERVER_BIN:-}" ]] && server_cmd=("$SERVER_BIN" --headless)
 
+# The port a game listens on (Protocol.PORTS), for publishing the container.
+game_port() {
+  sed -n "/^const PORTS/,/^}/s/^[[:space:]]*\"$1\":[[:space:]]*\([0-9]*\).*/\1/p" "$ROOT/common/net/protocol.gd"
+}
+
 start_server() {  # game seconds log
+  if [[ -n "${SERVER_IMAGE:-}" ]]; then
+    # Attached `docker run` proxies signals to the container, so the restart
+    # test's kill reaches the server the same way systemd/docker stop would.
+    ${_TO[@]+"${_TO[@]}"} docker run --rm -e GAME="$1" -p "127.0.0.1:$(game_port "$1"):9080" \
+        "$SERVER_IMAGE" --run-seconds="$2" --expect-peers="$CLIENTS" > "$3" 2>&1 &
+    return
+  fi
   ${_TO[@]+"${_TO[@]}"} "${server_cmd[@]}" -- --server --game="$1" \
       --run-seconds="$2" --expect-peers="$CLIENTS" > "$3" 2>&1 &
 }

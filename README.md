@@ -65,6 +65,31 @@ docs/                    SESSION_NOTES.md (build history) + browser test screens
 
 On Godot 4.7.1 (Linux): all scripts compile with untyped declarations treated as errors; 22 unit tests pass; server + 2–3 bot clients pass the smoke test in 2D and 3D, both from source and as the exported dedicated-server binary. The web export ran in headless Chromium (WebGL 2 via SwiftShader) against the exported server: the join gate, keyboard input, server movement and the other player all worked, including over HTTPS → `wss://` through the shipped Caddy config. A Kenney-format test pack (GLB + spritesheet XML) went through the installer, atlas converter and the `MODEL_PATH`/`SPRITE_PATH` swap. Not tested: a real macOS machine, Safari, and real Kenney downloads (kenney.nl wasn't reachable from the build environment).
 
+## Branches and releases
+
+The repo uses **git-flow**:
+
+| Branch | What it holds | Branch from | Merge into |
+|---|---|---|---|
+| `main` | released code only; every commit is a tagged release | — | — |
+| `develop` | the integration branch (default branch; open PRs here) | `main` | — |
+| `feature/<issue>-<slug>` | one issue or change, e.g. `feature/5-touch-controls` | `develop` | `develop` (PR) |
+| `release/vX.Y.Z` | getting a release ready: version, changelog, fixes only | `develop` | `main` **and** `develop` |
+| `hotfix/vX.Y.Z` | an urgent fix to a released version | `main` | `main` **and** `develop` |
+
+`main` and `develop` are protected: changes arrive by pull request with CI green. CI refuses PRs into `main` from anything but `release/*` and `hotfix/*`. Because `develop` is the default branch, `Fixes #N` closes an issue when its feature merges into `develop`, not when it ships.
+
+**Cutting a release** (example `v0.1.0`):
+1. `git switch -c release/v0.1.0 develop`
+2. Set `config/version="0.1.0"` in `project.godot` (`tools/version.sh` prints it), and in `CHANGELOG.md` rename **Unreleased** to `[0.1.0] - YYYY-MM-DD`. Run `tools/verify.sh`.
+3. Open a PR `release/v0.1.0` → `main`. After CI passes, merge it.
+4. Tag the merge commit and push the tag: `git switch main && git pull && git tag v0.1.0 && git push origin v0.1.0`.
+5. Merge `main` back into `develop` (PR) so the version and changelog land there too, and add a fresh **Unreleased** section.
+
+Pushing the tag runs `.github/workflows/release.yml`. It checks that the tag matches `project.godot`, is on `main` and has changelog notes; re-runs the full CI on the tagged commit; then creates a **GitHub Release** with `game-web-vX.Y.Z.zip`, `game-server-linux-x86_64-vX.Y.Z` and `SHA256SUMS`; and publishes that release's web build to **GitHub Pages**. Nothing is published if any step fails. A hotfix is the same with `hotfix/vX.Y.Z` branched from `main`.
+
+**The published page:** `https://<owner>.github.io/<repo>/` is a landing page linking to every game in `Protocol.PORTS` (built by `tools/make_site.sh`). Pages is HTTPS, so the games need a `wss://` game server, and Pages can't host one. Set the repository variable **`GAME_SERVER_URL`** (Settings → Secrets and variables → Actions → Variables), e.g. `wss://game.example.com`, and the links carry `&server=<url>/ws/<game>` to match the `deploy/` Caddy setup. Without it the page loads but explains that no server is configured.
+
 ## Deploying
 
 See `deploy/README.md`: one VPS, Caddy for automatic HTTPS and WebSocket TLS, one systemd service per game. CI (`.github/workflows/ci.yml`) runs the full verification and exports on every push.

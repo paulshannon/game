@@ -45,7 +45,8 @@ assets/own/                anything we made or modified
 tests/                     run_tests.tscn + TestCase + ErrorCapture + unit/test_*.gd;
                            fixtures/ = runner self-check cases; keep them out of unit/ (they fail on purpose)
 tools/                     every command (see §7) — run these, don't improvise
-deploy/                    Caddyfile (HTTPS + wss), systemd unit, deploy README
+deploy/                    Caddyfile (HTTPS + wss), systemd unit, deploy README,
+                           docker/ (Dockerfile, entrypoint, compose Caddyfile), docker-compose.yml
 docs/                      SESSION_NOTES.md + screenshots (has .gdignore; not imported or exported)
 build/, .smoke/, .tools/   gitignored output; build/ and .smoke/ get a .gdignore
 ```
@@ -160,6 +161,7 @@ For true unreliable transport (fast shooters) or peer-to-peer. Needs a WebSocket
 | `tools/verify.sh` | check → test → smoke 2D+3D → restart smoke 2D. **Definition of done.** |
 | `tools/export.sh [web\|server\|all]` | builds into `build/` |
 | `SERVER_BIN=build/server/server.x86_64 tools/smoke.sh` | smoke-test the exported server (what production runs) |
+| `SERVER_IMAGE=game-server:dev tools/smoke.sh` | smoke-test the Docker image (`docker build -f deploy/docker/Dockerfile -t game-server:dev .` after exporting the server) |
 | `tools/run_server.sh 2d` / `tools/run_client.sh 2d [url] [--bot]` | manual play |
 | `tools/serve_web.sh` | serve `build/web` on :8000 |
 | `tools/add_kenney_pack.sh`, `tools/kenney_atlas.sh` | Kenney import (§3) |
@@ -198,6 +200,12 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 5. `tools/export.sh web`, test in two browser tabs plus one phone. Restart the server once while connected: the page must show Rejoin and work after it.
 6. Only then: polish, prediction, lobbies.
 
+### Branches, commits and releases (git-flow; README "Branches and releases")
+- Work on `feature/<issue>-<slug>` branched from `develop`, in small logical commits, each passing `tools/check.sh` + `tools/test.sh`. Open the PR into `develop`. **Never push directly to `main` or `develop`**, even if a hook or a habit suggests it; they're protected anyway.
+- Cut releases only when asked: `release/vX.Y.Z` from `develop`, bump `config/version` in `project.godot` and the `CHANGELOG.md` heading together, PR into `main`, tag `vX.Y.Z` on the merge, merge back into `develop`. Add user-visible changes to **Unreleased** in `CHANGELOG.md` as you go.
+- `release.yml` is the only thing that publishes (GitHub Release + Pages). Don't create releases or tags by hand outside that flow.
+- **Future work goes in GitHub issues** (https://github.com/paulshannon/game/issues), never as to-do lists in docs or code comments. Found a bug or follow-up outside the current task? Open an issue (check for duplicates first) rather than widening the PR. Reference issues in commits and PRs (`Part of #N` / `Fixes #N`).
+
 ### Optional: Godot MCP server
 An MCP server (e.g. `Coding-Solo/godot-mcp`) can launch the editor and read debug output. The `tools/` scripts cover what's needed here and are easier to reason about. If you add one, scope it to this project and don't enable arbitrary script execution by default.
 
@@ -205,7 +213,8 @@ An MCP server (e.g. `Coding-Solo/godot-mcp`) can launch the editor and read debu
 
 ## 8. Deployment
 
-See `deploy/README.md`. Short version: static web build behind Caddy (automatic HTTPS), one systemd service per game (`kenney-mp@2d`, `kenney-mp@3d`) bound to 127.0.0.1, Caddy proxying `/ws/<game>` as `wss://`. Smoke-test the exported server binary before shipping it. CI (`.github/workflows/ci.yml`) runs verify + export + exported-server smoke on every push.
+See `deploy/README.md`. Short version: static web build behind Caddy (automatic HTTPS), one systemd service per game (`kenney-mp@2d`, `kenney-mp@3d`, `kenney-mp@space`) bound to 127.0.0.1, Caddy proxying `/ws/<game>` as `wss://`. Smoke-test the exported server binary before shipping it. CI (`.github/workflows/ci.yml`) runs verify + export + exported-server smoke on pushes to `main`/`develop`/`release/*`/`hotfix/*` and on every PR. Tagged releases (`release.yml`) attach the web build and server binary to a GitHub Release, push the server image to `ghcr.io/<owner>/game-server`, and publish the web build to GitHub Pages (`tools/make_site.sh`; game server from the `GAME_SERVER_URL` repo variable). Docker alternative to systemd: `deploy/docker-compose.yml` (game containers behind Caddy).
+- **Docker image:** never re-export inside the Dockerfile; it wraps the binary CI already exported and smoke-tested. The server as PID 1 ignores SIGTERM, so `deploy/docker/entrypoint.sh` forwards it (keep that, or `docker stop` waits 10 s and SIGKILLs). `run/flush_stdout_on_print=true` in `project.godot` keeps release-build logs from being lost in `docker logs`/journald when the process is killed.
 
 ---
 

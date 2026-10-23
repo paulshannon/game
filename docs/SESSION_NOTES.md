@@ -99,8 +99,17 @@ Screenshots from the browser runs are in `docs/screenshots/`. `web-3d-two-player
 
 ## 6. Open threads / sensible next steps
 
-- Run `tools/verify.sh` on Paul's own machine first. That covers the macOS path if that's the dev machine.
-- Push to GitHub to exercise `.github/workflows/ci.yml`.
-- Try a real Kenney pack (e.g. *Mini Characters* for 3D, *Toon Characters* for 2D) through `add_kenney_pack.sh`.
-- First real mechanic: put rules in `common/sim`, unit-test them, and extend `smoke_report()` so the smoke test proves the mechanic over the network.
-- Client-side prediction is designed for (`ArenaSim` reuse, `InputRelay.last_seq`) but not built. Add it only when local movement feels laggy.
+**Future work lives in the GitHub issue tracker, not in this file:** https://github.com/paulshannon/game/issues. This file keeps the history and reasoning; it isn't a to-do list.
+
+What this section used to list was assessed on 2026-10-23 and moved into issues:
+
+| Was here | Now |
+|---|---|
+| Run `tools/verify.sh` on Paul's machine (macOS) | #13, together with real Safari / iPad testing |
+| Push to GitHub to exercise CI | Done: CI has run on every push since the import, PRs included |
+| Try a real Kenney pack | Partly done (UI Pack: Sci-fi in #6, no GLBs or XML spritesheets); real 3D/2D packs in #15 |
+| First real mechanic | #16 (space) |
+| Client-side prediction | #17, deferred until movement feels laggy |
+
+Threads that came up later: first release through `release.yml` (#11), a public `wss://` server and `GAME_SERVER_URL` (#12), checking release builds for the disconnect error on Rejoin (#14), Docker arm64 / `:develop` image (#18).
+
