@@ -1,0 +1,63 @@
+# Docker deployment: one container per game behind Caddy (automatic HTTPS +
+# wss://). The game ports are never published; only Caddy is reachable.
+#
+#   cd deploy
+#   DOMAIN=play.example.com docker compose up -d
+#   docker compose logs -f game-2d
+#
+# Variables (shell or a deploy/.env file):
+#   DOMAIN             public domain, or ":80" for a plain-HTTP local test
+#   GAME_SERVER_IMAGE  default ghcr.io/paulshannon/game-server:latest; pin a
+#                      release in production, e.g. ...:0.1.0
+#   WEB_DIR            the web build to serve (default ./web)
+#   HTTP_PORT/HTTPS_PORT  host ports for Caddy (default 80/443)
+# Remove the services for games you don't host.
+
+x-game: &game
+  image: ${GAME_SERVER_IMAGE:-ghcr.io/paulshannon/game-server:latest}
+  restart: unless-stopped
+
+services:
+  game-2d:
+    <<: *game
+    environment:
+      GAME: 2d
+    volumes:
+      - game-2d-data:/data
+
+  game-3d:
+    <<: *game
+    environment:
+      GAME: 3d
+    volumes:
+      - game-3d-data:/data
+
+  game-space:
+    <<: *game
+    environment:
+      GAME: space
+    volumes:
+      - game-space-data:/data
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [game-2d, game-3d, game-space]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN, e.g. play.example.com (or :80 for a local HTTP test)}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${WEB_DIR:-./web}:/srv/web:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  game-2d-data:
+  game-3d-data:
+  game-space-data:
+  caddy-data:
+  caddy-config:
