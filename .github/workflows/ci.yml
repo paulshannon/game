@@ -50,6 +50,17 @@ jobs:
       - name: Smoke test the exported server binary
         run: SERVER_BIN=build/server/server.x86_64 tools/smoke.sh all 8 2
 
+      # The Docker image (deploy/docker/Dockerfile) wraps that same binary.
+      # Release tags push it to ghcr.io (release.yml); here it's built and
+      # smoke-tested on every push/PR so a broken image never gets that far.
+      - name: Build server image
+        run: docker build -f deploy/docker/Dockerfile -t game-server:ci .
+
+      - name: Smoke test the server image (all games + a server restart)
+        run: |
+          SERVER_IMAGE=game-server:ci tools/smoke.sh all 8 2
+          SERVER_IMAGE=game-server:ci SMOKE_RESTART=1 tools/smoke.sh 2d 8 2
+
       - uses: actions/upload-artifact@v4
         with:
           name: builds
