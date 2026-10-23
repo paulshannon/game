@@ -5,6 +5,7 @@ name: release
 #   check   tag == project.godot version, tagged commit is on main, CHANGELOG has notes
 #   verify  the full ci.yml run on the tagged commit (verify.sh, exports, exported-server smoke)
 #   release GitHub Release with the web build, server binary and SHA256SUMS
+#   image   ghcr.io/<owner>/game-server:X.Y.Z, :X.Y and :latest (same binary)
 #   pages   the release's web build + a landing page on GitHub Pages
 on:
   push:
@@ -77,6 +78,58 @@ jobs:
           gh release create "$GITHUB_REF_NAME" dist/* \
             --verify-tag --title "v$V" --notes-file notes.md
           echo "Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+  image:
+    needs: [check, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      # The binary verify exported and smoke-tested; verify also built and
+      # smoke-tested an image from it with this same Dockerfile.
+      - uses: actions/download-artifact@v4
+        with:
+          name: builds
+          path: build
+
+      - id: name
+        name: Image name (registry paths must be lowercase)
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/game-server" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      # Tag vX.Y.Z → X.Y.Z, X.Y and latest.
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.check.outputs.version }}
+            REVISION=${{ github.sha }}
+
+      - name: Summary
+        run: |
+          echo "Image: ${{ steps.name.outputs.image }}:${{ needs.check.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
 
   pages:
     needs: [check, verify, release]

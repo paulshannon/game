@@ -1,0 +1,6 @@
+# Docker build context = repo root, but the image needs only these files.
+# Everything else (assets, .godot/, build/web, .tools/) stays out, keeping the
+# context tiny and the build fast.
+*
+!build/server/server.x86_64
+!deploy/docker/entrypoint.sh
