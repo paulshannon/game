@@ -6,6 +6,9 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+### Fixed
+- `release.yml` adopts a GitHub Release that already exists for the tag (e.g. one created on GitHub's "Draft a new release" page): it attaches the verified files and replaces the notes instead of failing, so re-running the job is safe. The v0.1.1 run failed this way (#11).
+
 ## [0.1.1] - 2026-10-23
 
 **The first published release.** It contains everything listed under 0.1.0 in [CHANGELOG.md](https://github.com/paulshannon/game/blob/main/CHANGELOG.md) (the space game and its menu, touch controls, smoother networking, rejoin after disconnects, the Docker image, git-flow releases), plus the fix below. The `v0.1.0` tag points at a pre-release `develop` commit and was never published: its release run stopped at the first check.
