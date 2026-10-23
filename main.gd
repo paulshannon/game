@@ -63,7 +63,7 @@ func _start_client() -> void:
 		# Child of Main, not the game, so it survives the game being rebuilt
 		# after a disconnect. Harmless on non-touch screens: draws nothing
 		# until a touch arrives.
-		var controls := TouchControls.new(_game.uses_jump())
+		var controls := TouchControls.new(_game.action_button())
 		controls.name = "TouchControls"
 		add_child(controls)
 		_menu = _game.make_menu()
@@ -71,9 +71,7 @@ func _start_client() -> void:
 			_menu.name = "Menu"
 			add_child(_menu)
 			_menu.play_requested.connect(_join)
-	var help: String = "WASD / arrows to move" + (", Space to jump" if _game.uses_jump() else "")
-	if touch:
-		help = "drag on the left to move" + (", tap Jump to jump" if _game.uses_jump() else "")
+	var help: String = _game.controls_help(touch)
 	Net.connected.connect(func(id: int) -> void:
 		_connects += 1
 		_hud.set_status("Connected  —  " + help)

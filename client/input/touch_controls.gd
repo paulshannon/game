@@ -1,8 +1,8 @@
 class_name TouchControls
 extends CanvasLayer
 ## On-screen controls for touch screens (iPad, phones): a floating joystick on
-## the left half of the screen and, in games that jump, a jump button
-## bottom-right.
+## the left half of the screen and, in games that have one, an action button
+## (Jump, Fire: GameBase.action_button()) bottom-right.
 ##
 ## They press the same input actions as the keyboard (InputSetup), with analog
 ## strength, so InputRelay's Input.get_vector() picks them up unchanged and the
@@ -10,24 +10,25 @@ extends CanvasLayer
 ## sanitizes every move it receives.
 ##
 ## Multi-touch: each control tracks the finger (touch index) that started it,
-## so moving and jumping work at the same time.
+## so moving and jumping (or firing) work at the same time.
 
-const JUMP_RADIUS: float = 64.0
-## Jump button centre, measured from the bottom-right corner of the screen.
-const JUMP_INSET := Vector2(120, 120)
+const BUTTON_RADIUS: float = 64.0
+## Action button centre, measured from the bottom-right corner of the screen.
+const BUTTON_INSET := Vector2(120, 120)
 
-var with_jump: bool = false
+## Input action the button presses; empty for no button.
+var action: StringName = &""
 
 var _stick := TouchStick.new()
 var _stick_index: int = -1
-var _jump_index: int = -1
+var _button_index: int = -1
 ## Draw the controls once we know the screen is touch (or after a first touch).
 var _shown: bool = false
 var _canvas: Control
 
 
-func _init(jump: bool = false) -> void:
-	with_jump = jump
+func _init(button_action: StringName = &"") -> void:
+	action = button_action
 	layer = 5  # above the game, below nothing in particular; HUD buttons still get taps
 
 
@@ -64,8 +65,8 @@ func handle_event(event: InputEvent, view: Vector2) -> bool:
 	return false
 
 
-func jump_center(view: Vector2) -> Vector2:
-	return view - JUMP_INSET
+func button_center(view: Vector2) -> Vector2:
+	return view - BUTTON_INSET
 
 
 ## Lets go of everything: on focus loss / backgrounding the OS may never send
@@ -76,9 +77,9 @@ func release_all() -> void:
 	_stick_index = -1
 	_stick.release()
 	_apply_stick()
-	if _jump_index != -1:
-		_jump_index = -1
-		Input.action_release(InputSetup.JUMP)
+	if _button_index != -1:
+		_button_index = -1
+		Input.action_release(action)
 	_redraw()
 
 
@@ -91,9 +92,10 @@ func _notification(what: int) -> void:
 
 func _touch_down(index: int, pos: Vector2, view: Vector2) -> bool:
 	_shown = true
-	if with_jump and _jump_index == -1 and pos.distance_to(jump_center(view)) <= JUMP_RADIUS:
-		_jump_index = index
-		Input.action_press(InputSetup.JUMP)
+	if not action.is_empty() and _button_index == -1 \
+			and pos.distance_to(button_center(view)) <= BUTTON_RADIUS:
+		_button_index = index
+		Input.action_press(action)
 		_redraw()
 		return true
 	if _stick_index == -1 and pos.x < view.x * 0.5:
@@ -106,9 +108,9 @@ func _touch_down(index: int, pos: Vector2, view: Vector2) -> bool:
 
 
 func _touch_up(index: int) -> bool:
-	if index == _jump_index:
-		_jump_index = -1
-		Input.action_release(InputSetup.JUMP)
+	if index == _button_index:
+		_button_index = -1
+		Input.action_release(action)
 		_redraw()
 		return true
 	if index == _stick_index:
@@ -152,14 +154,15 @@ func _draw_controls() -> void:
 		_canvas.draw_circle(_stick.knob, TouchStick.RADIUS * 0.4, Color(1, 1, 1, 0.45))
 	else:
 		# Resting hint where a left thumb naturally lands.
-		var hint := Vector2(JUMP_INSET.x, view.y - JUMP_INSET.y)
+		var hint := Vector2(BUTTON_INSET.x, view.y - BUTTON_INSET.y)
 		_canvas.draw_arc(hint, TouchStick.RADIUS, 0.0, TAU, 48, edge, 2.0)
-	if with_jump:
-		var c: Vector2 = jump_center(view)
-		_canvas.draw_circle(c, JUMP_RADIUS, Color(1, 1, 1, 0.35 if _jump_index != -1 else 0.15))
-		_canvas.draw_arc(c, JUMP_RADIUS, 0.0, TAU, 48, edge, 2.0)
+	if not action.is_empty():
+		var c: Vector2 = button_center(view)
+		_canvas.draw_circle(c, BUTTON_RADIUS, Color(1, 1, 1, 0.35 if _button_index != -1 else 0.15))
+		_canvas.draw_arc(c, BUTTON_RADIUS, 0.0, TAU, 48, edge, 2.0)
 		var font: Font = ThemeDB.fallback_font
 		var size: int = 22
-		var w: float = font.get_string_size("Jump", HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		_canvas.draw_string(font, c + Vector2(-w * 0.5, size * 0.35), "Jump",
+		var text: String = InputSetup.label(action)
+		var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+		_canvas.draw_string(font, c + Vector2(-w * 0.5, size * 0.35), text,
 				HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1, 1, 1, 0.8))

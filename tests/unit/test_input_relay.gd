@@ -13,11 +13,12 @@ func test_held_input_is_kept_within_timeout() -> void:
 
 func test_stale_input_is_released() -> void:
 	var r := InputRelay.new()
-	r.accept_input(Vector2.RIGHT, true)
+	r.accept_input(Vector2.RIGHT, true, true)
 	for i: int in 20:  # 20 physics ticks > INPUT_TIMEOUT
 		r.age_input(1.0 / 60.0)
 	assert_eq(r.move, Vector2.ZERO)
 	assert_false(r.jump)
+	assert_false(r.fire, "a held fire button must not keep shooting")
 	r.free()
 
 

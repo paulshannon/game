@@ -62,9 +62,19 @@ func _build_client_world() -> void:
 	pass
 
 
-## Whether the game has a jump (shows the touch Jump button).
-func uses_jump() -> bool:
-	return false
+## The game's one action besides moving (InputSetup.JUMP, InputSetup.FIRE),
+## or empty for none. Shows the touch button and the keyboard hint.
+func action_button() -> StringName:
+	return &""
+
+
+## The controls hint in the status line.
+func controls_help(touch: bool) -> String:
+	var act: StringName = action_button()
+	var verb: String = InputSetup.label(act).to_lower()
+	if touch:
+		return "drag on the left to move" + ("" if act.is_empty() else ", tap %s to %s" % [InputSetup.label(act), verb])
+	return "WASD / arrows to move" + ("" if act.is_empty() else ", Space to " + verb)
 
 
 ## A start menu for people (not bots), or null for the plain join button.

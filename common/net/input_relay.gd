@@ -10,22 +10,25 @@ extends Node
 var owner_peer: int = 0
 ## Drive input from a wandering bot instead of the keyboard (smoke tests).
 var use_bot: bool = false
+## The bot used when use_bot is set. A player may set its own (a BotInput
+## subclass) before _ready; otherwise a wandering BotInput is made.
+var bot: BotInput = null
 
 ## Latest accepted input, read by the server-side player each physics tick.
 var move: Vector2 = Vector2.ZERO
 var jump: bool = false
+var fire: bool = false
 var last_seq: int = -1
 
 var _seq: int = 0
 ## Server: seconds since the last accepted input (see Protocol.INPUT_TIMEOUT).
 var _since_input: float = 0.0
 var _send_accum: float = 0.0
-var _bot: BotInput = null
 
 
 func _ready() -> void:
-	if use_bot:
-		_bot = BotInput.new(owner_peer)
+	if use_bot and bot == null:
+		bot = BotInput.new(owner_peer)
 
 
 func is_local_owner() -> bool:
@@ -48,22 +51,25 @@ func _physics_process(delta: float) -> void:
 
 	var m: Vector2
 	var j: bool
-	if _bot != null:
-		_bot.update(interval)
-		m = _bot.move
-		j = _bot.jump
+	var f: bool
+	if use_bot and bot != null:
+		bot.update(interval)
+		m = bot.move
+		j = bot.jump
+		f = bot.fire
 	else:
 		m = Input.get_vector(InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN)
 		j = Input.is_action_pressed(InputSetup.JUMP)
+		f = Input.is_action_pressed(InputSetup.FIRE)
 	_seq += 1
-	submit_input.rpc_id(1, m, j, _seq)
+	submit_input.rpc_id(1, m, j, f, _seq)
 
 
 # "unreliable_ordered" is the correct intent: stale input is useless and newer
 # input supersedes it. Over WebSocket (TCP) it is delivered reliably anyway;
 # the annotation becomes real if the transport changes to WebRTC.
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
-func submit_input(m: Vector2, j: bool, seq: int) -> void:
+func submit_input(m: Vector2, j: bool, f: bool, seq: int) -> void:
 	if not multiplayer.is_server():
 		return
 	# Never trust the caller: the sender must be the peer this player belongs to.
@@ -73,13 +79,14 @@ func submit_input(m: Vector2, j: bool, seq: int) -> void:
 	if seq <= last_seq:
 		return
 	last_seq = seq
-	accept_input(m, j)
+	accept_input(m, j, f)
 
 
 ## Server: store a validated input and restart the staleness timer.
-func accept_input(m: Vector2, j: bool) -> void:
+func accept_input(m: Vector2, j: bool, f: bool = false) -> void:
 	move = ArenaSim.sanitize_move(m)
 	jump = j
+	fire = f
 	_since_input = 0.0
 
 
@@ -91,3 +98,4 @@ func age_input(delta: float) -> void:
 	if _since_input >= Protocol.INPUT_TIMEOUT:
 		move = Vector2.ZERO
 		jump = false
+		fire = false

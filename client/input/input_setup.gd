@@ -9,6 +9,7 @@ const RIGHT: StringName = &"move_right"
 const UP: StringName = &"move_up"
 const DOWN: StringName = &"move_down"
 const JUMP: StringName = &"jump"
+const FIRE: StringName = &"fire"
 
 ## Analog dead zone for the move actions. Keys always press at full
 ## strength, so this only matters for analog input (TouchControls' stick).
@@ -22,6 +23,13 @@ static func ensure_actions() -> void:
 	_bind(UP, [KEY_W, KEY_UP], STICK_DEADZONE)
 	_bind(DOWN, [KEY_S, KEY_DOWN], STICK_DEADZONE)
 	_bind(JUMP, [KEY_SPACE])
+	# Same key as jump: no game uses both, and each reads only its own action.
+	_bind(FIRE, [KEY_SPACE])
+
+
+## Button text for an action: "jump" -> "Jump".
+static func label(action: StringName) -> String:
+	return String(action).capitalize()
 
 
 static func _bind(action: StringName, keys: Array[Key], deadzone: float = 0.5) -> void:

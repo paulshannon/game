@@ -6,6 +6,13 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+### Added
+- **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
+- `fire` input action (Space) and a touch **Fire** button. Games choose their touch action button with `GameBase.action_button()` (which replaces `uses_jump()`).
+
+### Fixed
+- A client that stalls while the first snapshots arrive (loading art on the first spawn) no longer draws everything seconds late for a long time: `SnapshotClock` jumps when it is far behind instead of slewing.
+
 ## [0.1.1] - 2026-10-23
 
 **The first published release.** It contains everything listed under 0.1.0 in [CHANGELOG.md](https://github.com/paulshannon/game/blob/main/CHANGELOG.md) (the space game and its menu, touch controls, smoother networking, rejoin after disconnects, the Docker image, git-flow releases), plus the fix below. The `v0.1.0` tag points at a pre-release `develop` commit and was never published: its release run stopped at the first check.

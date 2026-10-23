@@ -39,7 +39,8 @@ common/
 client/                    SnapshotBuffer/SnapshotClock (interpolation), InputSetup (actions),
                            TouchControls + TouchStick (on-screen stick/Jump), Hud, GameMenu
 games/<name>/              one folder per prototype + README.md (core loop, players, packs):
-                           box_arena_2d, box_arena_3d, space (2D, has a main menu)
+                           box_arena_2d, box_arena_3d, space (2D: asteroids, shots, pickups,
+                           score; main menu; second spawner for entities)
 assets/kenney/<pack>/      whole packs, original structure, License kept
 assets/own/                anything we made or modified
 tests/                     run_tests.tscn + TestCase + ErrorCapture + unit/test_*.gd;
@@ -94,11 +95,11 @@ Kenney character GLBs include animations. Drive them from an `AnimationTree` on 
 Clients send **input**. The server simulates and replicates **state**. Clients render state. Never let a client tell the server its position, score or hit result, even in a prototype — retrofitting authority means rewriting every gameplay script.
 
 ### How a frame flows (read these files in order)
-1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand). On touch screens `client/input/touch_controls.gd` presses the **same actions** with analog strength (floating stick on the left half, Jump bottom-right when `GameBase.uses_jump()`), so nothing downstream knows touch exists. Never add a touch-only input path to the protocol.
-2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, seq)` to the server at `Protocol.INPUT_HZ`. On the server, validates sender == owner, drops stale `seq`, sanitizes. Input older than `Protocol.INPUT_TIMEOUT` (250 ms) counts as released, so a backgrounded tab or stalled network can't hold a key down forever.
+1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand). On touch screens `client/input/touch_controls.gd` presses the **same actions** with analog strength (floating stick on the left half, an action button bottom-right for the game's `GameBase.action_button()`, e.g. Jump or Fire), so nothing downstream knows touch exists. Never add a touch-only input path to the protocol.
+2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, fire, seq)` to the server at `Protocol.INPUT_HZ`. On the server, validates sender == owner, drops stale `seq`, sanitizes. Input older than `Protocol.INPUT_TIMEOUT` (250 ms) counts as released, so a backgrounded tab or stalled network can't hold a key down forever.
 3. `games/*/player_*.gd` `_physics_process` (server only) — `ArenaSim.step_*` → writes `net_time` (server clock) + `net_position` / `net_rotation`.
 4. `common/net/replication.gd` — a `MultiplayerSynchronizer` sends those at `Protocol.SNAPSHOT_HZ` (20 Hz). Authority stays with the server.
-5. Player property setters (client) push each snapshot into a `SnapshotBuffer` **stamped with `net_time`, not arrival time**, and `SnapshotClock` maps server time onto the local clock. `_process` draws at server time `now - latency - Protocol.INTERP_DELAY` (100 ms ≈ 2 snapshots). Stamping by arrival time would squash a burst of snapshots that queued up behind a TCP stall into ~0 s and the player would teleport. `net_time` must stay **first** in the synchronizer's property list: properties are applied in list order, so it's set before the values it stamps. Stalls up to `INTERP_DELAY − snapshot interval − latency` (~20–50 ms) are invisible; longer ones pause, then catch up by the excess.
+5. Player property setters (client) push each snapshot into a `SnapshotBuffer` **stamped with `net_time`, not arrival time**, and `SnapshotClock` maps server time onto the local clock. `_process` draws at server time `now - latency - Protocol.INTERP_DELAY` (100 ms ≈ 2 snapshots). Stamping by arrival time would squash a burst of snapshots that queued up behind a TCP stall into ~0 s and the player would teleport. `net_time` must stay **first** in the synchronizer's property list: properties are applied in list order, so it's set before the values it stamps. Stalls up to `INTERP_DELAY − snapshot interval − latency` (~20–50 ms) are invisible; longer ones pause, then catch up by the excess. The clock slews slowly toward lower latency, except when it is more than `SnapshotClock.SNAP_BEHIND` behind: then it jumps (a client that stalled loading art while the first snapshots arrived would otherwise draw seconds late for a long time).
 
 ### Spawning
 `GameBase` owns a `MultiplayerSpawner` with a **custom `spawn_function`**: the server calls `spawner.spawn(data)`, and the same function runs on every peer with the same data, building the player in code. Players are named by peer id so node paths — and therefore RPCs — match everywhere. Removing the node on the server is enough to despawn on clients. Spawn data must stay small primitives.
@@ -109,7 +110,10 @@ Clients send **input**. The server simulates and replicates **state**. Clients r
 - **WebSocket is TCP**, so `unreliable*` behaves as reliable-ordered and one late packet delays the ones behind it. Keep the annotations correct anyway (they become real on WebRTC) and design for 100–200 ms hitches: interpolate, never snap.
 
 ### Player plumbing
-`common/game/player_net.gd` (`PlayerNet`) holds what every player shares: spawn data (peer id, slot, colour), the `InputRelay`, the synchronizer, and client-side buffering and sampling on the server timeline. A player script declares the synced properties (the synchronizer reads them off the node), forwards their setters to `PlayerNet`, and keeps only its sim step and visuals. A new game's player should do the same; don't copy the plumbing.
+`common/game/player_net.gd` (`PlayerNet`) holds what every player shares: spawn data (peer id, slot, colour), the `InputRelay`, the synchronizer, and client-side buffering and sampling on the server timeline. A player script declares the synced properties (the synchronizer reads them off the node), forwards their setters to `PlayerNet`, and keeps only its sim step and visuals. A new game's player should do the same; don't copy the plumbing. `PlayerNet.setup(..., on_change_props)` adds the player's own rarely changing props; `PlayerNet.use_clock()` shares one server clock with other things drawn on the server timeline.
+
+### Spawned entities (projectiles, rocks, pickups)
+Use a second `MultiplayerSpawner` with its own custom `spawn_function`, server-only instantiation, small primitive spawn data, and node names derived from a server-assigned id. When the motion is predictable (straight lines, bounces), put origin, velocity and the server spawn time in the spawn data, and compute the position from them on every peer instead of syncing each entity. `games/space/` (`SpaceEntity`) is the example. It also keeps a client-side "ghost" after a despawn until render time reaches the removal, so hits line up with what's drawn.
 
 ### Adding a synced property
 Add it to the property list passed to `Replication.make_synchronizer(...)` (`PlayerNet.SYNCED` for the shared position/rotation ones). Use the second list (`on_change_props`) for values that rarely change (health, score, team).
@@ -175,6 +179,7 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 - **Configure `MultiplayerSpawner` (`spawn_path`, `spawn_function`) before `add_child`.**
 - **With no peer connected, `multiplayer.is_server()` returns true** (offline peer). Decide roles from `LaunchConfig.is_server` and gate client logic with `Net.is_online()`.
 - **Swapping `multiplayer_peer` after nodes have used RPC/replication makes 4.7 release builds log "Attempt to disconnect a nonexistent connection".** On quit, free the game first, then `Net.close_socket()` (closes without swapping). When the connection drops or fails, `Net` only emits the signal and leaves the dead peer in place; `main.gd` frees the game, waits a frame, calls `Net.close()`, adds a fresh game, then offers Rejoin (bots retry every `Protocol.REJOIN_DELAY`). Debug builds don't print this error, so the smoke test can't catch a wrong order — keep the order.
+- **Headless Godot's dummy audio driver never releases a playback that's cut off** (stopped, or replaced at `max_polyphony`): it's reported as leaked at exit, which fails the smoke test. Don't play sounds when `DisplayServer.get_name() == "headless"` (see `SpaceFx.play`).
 - **Server logs `ready_state != STATE_OPEN` when it sends into a socket a client is closing.** Every closed browser tab does this; it's the one entry in `tools/smoke_allowlist.txt`. Anything else in a smoke log is a real failure. Add allowlist entries only with a written reason.
 
 ### Editing scenes and resources
