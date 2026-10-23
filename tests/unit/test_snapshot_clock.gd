@@ -88,3 +88,12 @@ func test_offset_follows_latency_change_gradually() -> void:
 	clock.observe(1.0, 1.05)         # latency is really 0.05
 	# One second later the offset may only have moved by MAX_SLEW.
 	assert_near(clock.render_time(1.05), 1.05 - (0.2 - SnapshotClock.MAX_SLEW * 0.85) - Protocol.INTERP_DELAY, 0.0001)
+
+
+func test_far_behind_after_a_slow_start_jumps_forward() -> void:
+	# The first snapshots were held up 2 s (the client was loading); slewing
+	# back at MAX_SLEW would draw everything 2 s late for 20 s.
+	var clock := SnapshotClock.new()
+	clock.observe(0.0, 2.05)
+	clock.observe(2.0, 2.05)         # latency is really 0.05
+	assert_near(clock.render_time(2.05), 2.05 - 0.05 - Protocol.INTERP_DELAY, 0.0001)

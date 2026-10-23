@@ -14,9 +14,17 @@ extends RefCounted
 ## offset used for playback chases that minimum at a limited rate, so a
 ## latency change speeds playback up or slows it down slightly instead of
 ## jumping. Both clocks are monotonic; drift between them is tiny.
+##
+## One exception: when playback is more than SNAP_BEHIND further in the past
+## than the best latency seen, it jumps forward instead. That happens when the
+## first snapshots were held up (a client stalling while it loads art when the
+## first players spawn): slewing out of a 2 s backlog would take 20 s, all of
+## it drawn 2 s late. A stall can't trigger the jump: late packets only add
+## larger offsets, never smaller ones.
 
 const WINDOW: int = 40           # ~2 s of snapshots at 20 Hz
 const MAX_SLEW: float = 0.1      # offset may change by at most 0.1 s per second
+const SNAP_BEHIND: float = 0.5   # further behind than this: jump, don't slew
 
 var _offsets: PackedFloat64Array = PackedFloat64Array()
 var _offset: float = 0.0
@@ -32,7 +40,7 @@ func observe(server_time: float, local_time: float) -> void:
 	var target: float = _offsets[0]
 	for o: float in _offsets:
 		target = minf(target, o)
-	if not _synced:
+	if not _synced or _offset - target > SNAP_BEHIND:
 		_offset = target
 		_synced = true
 	else:
