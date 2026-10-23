@@ -204,6 +204,7 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 - Work on `feature/<issue>-<slug>` branched from `develop`, in small logical commits, each passing `tools/check.sh` + `tools/test.sh`. Open the PR into `develop`. **Never push directly to `main` or `develop`**, even if a hook or a habit suggests it; they're protected anyway.
 - Cut releases only when asked: `release/vX.Y.Z` from `develop`, bump `config/version` in `project.godot` and the `CHANGELOG.md` heading together, PR into `main`, tag `vX.Y.Z` on the merge, merge back into `develop`. Add user-visible changes to **Unreleased** in `CHANGELOG.md` as you go.
 - `release.yml` is the only thing that publishes (GitHub Release + Pages). Don't create releases or tags by hand outside that flow.
+- **Future work goes in GitHub issues** (https://github.com/paulshannon/game/issues), never as to-do lists in docs or code comments. Found a bug or follow-up outside the current task? Open an issue (check for duplicates first) rather than widening the PR. Reference issues in commits and PRs (`Part of #N` / `Fixes #N`).
 
 ### Optional: Godot MCP server
 An MCP server (e.g. `Coding-Solo/godot-mcp`) can launch the editor and read debug output. The `tools/` scripts cover what's needed here and are easier to reason about. If you add one, scope it to this project and don't enable arbitrary script execution by default.
