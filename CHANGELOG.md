@@ -6,6 +6,8 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-23
+
 ### Added
 - **Space** game (`?game=space`, port 9082) with a main menu built from Kenney's UI Pack: Sci-fi; games can now provide a start menu (`GameMenu`) (#6).
 - Touch controls for iPad and phones: floating stick and Jump button (#5).
