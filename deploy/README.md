@@ -36,7 +36,30 @@ Why this shape: an HTTPS page may only open `wss://` sockets, and the Godot serv
 4. **Caddy** (once): put `Caddyfile` in `/etc/caddy/Caddyfile` with your domain, `systemctl reload caddy`.
 5. Open `https://your-domain/?game=2d`, `?game=3d` or `?game=space`.
 
-Firewall: only 80 and 443 need to be open. 9080/9081 stay closed because the servers bind to 127.0.0.1.
+Firewall: only 80 and 443 need to be open. 9080/9081/9082 stay closed because the servers bind to 127.0.0.1.
+
+## Docker (alternative to systemd)
+
+Each release pushes the server image to **`ghcr.io/paulshannon/game-server`** (tags `X.Y.Z`, `X.Y`, `latest`). It's the same verified binary as the Release asset, on `debian:bookworm-slim`, running as a non-root user (UID 10001) with `HOME=/data` (a volume; Godot needs a writable home, see #3). One game per container: `GAME=2d|3d|space`, listening on **9080 inside the container** whatever the game. A TCP healthcheck is built in, and `docker stop` ends it immediately (the entrypoint forwards SIGTERM).
+
+**Compose** (`deploy/docker-compose.yml`): `game-2d`, `game-3d` and `game-space` containers behind Caddy, which provides automatic HTTPS and proxies `wss://DOMAIN/ws/<game>` to each. No game port is published.
+```bash
+cd deploy
+mkdir -p web && unzip -o game-web-vX.Y.Z.zip -d web    # the release's web build
+DOMAIN=play.example.com GAME_SERVER_IMAGE=ghcr.io/paulshannon/game-server:X.Y.Z docker compose up -d
+docker compose logs -f game-2d                         # logs
+docker compose pull && docker compose up -d            # upgrade after changing the tag
+```
+Drop the services for games you don't host. `DOMAIN=:80 HTTP_PORT=8088` runs it on plain HTTP for a local test (then `ws://localhost:8088/ws/<game>`).
+
+**A single container**, e.g. on a host that terminates TLS itself (Fly.io, Railway, Render): run the image with `GAME` set, expose port 9080, and point the page at it with `?game=<game>&server=wss://<host>`. Check that the platform keeps long-lived WebSocket connections open (no idle timeout shorter than a game).
+```bash
+docker run -d --name game-2d -e GAME=2d -p 127.0.0.1:9080:9080 -v game-2d-data:/data ghcr.io/paulshannon/game-server:latest
+```
+
+**Package visibility:** after the first release, set the package's visibility on GitHub (your profile → Packages → `game-server` → Package settings). Public images can be pulled anonymously; private ones need `docker login ghcr.io` with a token that has `read:packages` on every host.
+
+**Build and test locally:** `tools/export.sh server && docker build -f deploy/docker/Dockerfile -t game-server:dev .`, then `SERVER_IMAGE=game-server:dev tools/smoke.sh` runs the bot smoke test against the container (CI does this on every push).
 
 ## Static hosts instead of Caddy
 
