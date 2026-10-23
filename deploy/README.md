@@ -13,13 +13,21 @@ Why this shape: an HTTPS page may only open `wss://` sockets, and the Godot serv
 
 ## Steps
 
-1. **Build** (on your machine or in CI):
+1. **Get a build.** Either use a **GitHub Release** (already verified and smoke-tested by CI), on the server:
+   ```bash
+   V=0.1.0; R=https://github.com/<owner>/<repo>/releases/download/v$V
+   curl -fLO "$R/game-server-linux-x86_64-v$V" -fLO "$R/game-web-v$V.zip" -fLO "$R/SHA256SUMS"
+   sha256sum -c SHA256SUMS
+   install -D -m 755 "game-server-linux-x86_64-v$V" /srv/kenney-mp/server/server.x86_64
+   mkdir -p /srv/kenney-mp/web && unzip -o "game-web-v$V.zip" -d /srv/kenney-mp/web
+   ```
+   (then skip step 2), or build it yourself:
    ```bash
    tools/install_godot.sh --templates
    tools/export.sh all release
    SERVER_BIN=build/server/server.x86_64 tools/smoke.sh   # test the exact binary you ship
    ```
-2. **Copy** to the server:
+2. **Copy** a local build to the server:
    ```bash
    rsync -av build/web/    you@host:/srv/kenney-mp/web/
    rsync -av build/server/ you@host:/srv/kenney-mp/server/

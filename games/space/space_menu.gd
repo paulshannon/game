@@ -42,7 +42,7 @@ func _ready() -> void:
 	column.add_child(_build_panel())
 
 	var credit := Label.new()
-	credit.text = "UI art: Kenney (kenney.nl), CC0"
+	credit.text = "v%s  ·  UI art: Kenney (kenney.nl), CC0" % ProjectSettings.get_setting("application/config/version", "dev")
 	credit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	credit.add_theme_font_size_override("font_size", 14)
 	credit.add_theme_color_override("font_color", Color(SpaceUi.STAR_WHITE, 0.45))
