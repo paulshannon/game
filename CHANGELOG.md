@@ -6,6 +6,13 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-23
+
+**The first published release.** It contains everything listed under 0.1.0 in [CHANGELOG.md](https://github.com/paulshannon/game/blob/main/CHANGELOG.md) (the space game and its menu, touch controls, smoother networking, rejoin after disconnects, the Docker image, git-flow releases), plus the fix below. The `v0.1.0` tag points at a pre-release `develop` commit and was never published: its release run stopped at the first check.
+
+### Fixed
+- `release.yml` accepts only tags on `main`'s own merge commits; a tag on a commit merely reachable from `main` (like the stray `v0.1.0`) is rejected with instructions (#11).
+
 ## [0.1.0] - 2026-10-23
 
 ### Added
