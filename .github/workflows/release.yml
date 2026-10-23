@@ -28,6 +28,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      # "On main" means on main's first-parent line: the merge commits that
+      # landed there. Any commit merely reachable from main (e.g. a develop
+      # commit a release branch was cut from) is not a release.
       - id: version
         name: Tag matches the project version, is on main, and has notes
         run: |
@@ -36,8 +39,8 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME doesn't match project.godot version $v"; exit 1
           fi
           git fetch --quiet origin main
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::$GITHUB_REF_NAME is not on main. Tag the merge of release/v$v into main."; exit 1
+          if ! git rev-list --first-parent origin/main | grep -qx "$GITHUB_SHA"; then
+            echo "::error::$GITHUB_REF_NAME points at $GITHUB_SHA, which is not a commit on main itself. Tag the merge of release/v$v (or hotfix/v$v) into main: git tag -a v$v origin/main"; exit 1
           fi
           tools/release_notes.sh "$v" > /dev/null
           echo "version=$v" >> "$GITHUB_OUTPUT"
