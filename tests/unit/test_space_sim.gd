@@ -146,16 +146,19 @@ func test_smaller_asteroids_are_worth_more() -> void:
 func test_hit_destroys_ship_and_it_respawns_protected() -> void:
 	var s := _ship()
 	s.position = Vector2(100, 100)
-	assert_true(SpaceSim.hit_ship(s, Vector2(5, 5)))
+	s.velocity = Vector2(50, 0)
+	assert_true(SpaceSim.hit_ship(s))
 	assert_false(s.alive)
-	assert_eq(s.position, Vector2(5, 5), "parked at its spawn point while dead")
+	assert_eq(s.position, Vector2(100, 100), "stays where it was hit (clients explode it there)")
 	assert_eq(_run(s, Vector2.UP, 0.5, true), 0, "dead ships neither move nor shoot")
+	assert_eq(s.position, Vector2(100, 100))
 	assert_false(SpaceSim.can_respawn(s))
 	_run(s, Vector2.ZERO, SpaceSim.RESPAWN_TIME)
 	assert_true(SpaceSim.can_respawn(s))
 	SpaceSim.respawn(s, Vector2(5, 5))
 	assert_true(s.alive)
-	assert_false(SpaceSim.hit_ship(s, Vector2.ZERO), "spawn protection")
+	assert_eq(s.position, Vector2(5, 5), "moved only when it respawns")
+	assert_false(SpaceSim.hit_ship(s), "spawn protection")
 	_run(s, Vector2.ZERO, SpaceSim.SPAWN_PROTECTION + DT)
 	assert_true(SpaceSim.can_be_hit(s))
 
@@ -163,12 +166,12 @@ func test_hit_destroys_ship_and_it_respawns_protected() -> void:
 func test_shield_absorbs_one_hit() -> void:
 	var s := _ship()
 	SpaceSim.apply_pickup(s, SpaceSim.SHIELD)
-	assert_false(SpaceSim.hit_ship(s, Vector2.ZERO))
+	assert_false(SpaceSim.hit_ship(s))
 	assert_true(s.alive)
 	assert_false(s.shield)
-	assert_false(SpaceSim.hit_ship(s, Vector2.ZERO), "brief grace after the shield breaks")
+	assert_false(SpaceSim.hit_ship(s), "brief grace after the shield breaks")
 	_run(s, Vector2.ZERO, SpaceSim.SHIELD_GRACE + DT)
-	assert_true(SpaceSim.hit_ship(s, Vector2.ZERO))
+	assert_true(SpaceSim.hit_ship(s))
 
 
 func test_star_pickup_scores() -> void:
@@ -180,3 +183,24 @@ func test_star_pickup_scores() -> void:
 func test_overlap() -> void:
 	assert_true(SpaceSim.overlaps(Vector2.ZERO, 10.0, Vector2(15, 0), 5.0))
 	assert_false(SpaceSim.overlaps(Vector2.ZERO, 10.0, Vector2(15.1, 0), 5.0))
+
+
+func test_fast_shot_cannot_step_over_a_small_rock() -> void:
+	# One tick of a shot from a ship at full speed (~21 px), passing a small
+	# rock 15 px off-centre: both end points miss, the path doesn't.
+	var step: float = (SpaceSim.SHOT_SPEED + SpaceSim.MAX_SPEED) * DT
+	var from := Vector2(-step * 0.5, 15)
+	var to := from + Vector2(step, 0)
+	var r: float = SpaceSim.asteroid_radius(SpaceSim.SMALL)
+	assert_false(SpaceSim.overlaps(from, SpaceSim.SHOT_RADIUS, Vector2.ZERO, r))
+	assert_false(SpaceSim.overlaps(to, SpaceSim.SHOT_RADIUS, Vector2.ZERO, r))
+	assert_true(SpaceSim.sweep_hits(from, to, SpaceSim.SHOT_RADIUS, Vector2.ZERO, r))
+
+
+func test_sweep_misses_what_the_path_misses() -> void:
+	var r: float = SpaceSim.asteroid_radius(SpaceSim.SMALL)
+	assert_false(SpaceSim.sweep_hits(Vector2(-30, 25), Vector2(30, 25), SpaceSim.SHOT_RADIUS, Vector2.ZERO, r))
+	assert_false(SpaceSim.sweep_hits(Vector2(30, 0), Vector2(60, 0), SpaceSim.SHOT_RADIUS, Vector2.ZERO, r),
+			"rock behind the start")
+	assert_true(SpaceSim.sweep_hits(Vector2(5, 0), Vector2(5, 0), SpaceSim.SHOT_RADIUS, Vector2.ZERO, r),
+			"zero-length path is a point test")

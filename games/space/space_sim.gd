@@ -132,9 +132,11 @@ static func can_be_hit(s: Ship) -> bool:
 
 
 ## An asteroid hit the ship. The shield absorbs it; otherwise the ship is
-## destroyed and parked at `respawn_at` (hidden) until it respawns there.
+## destroyed. It stays where it was hit (hidden: clients draw the explosion at
+## its position) until respawn() moves it. Moving it now would have clients
+## interpolate the ship across the field before it explodes.
 ## Returns true when the ship was destroyed.
-static func hit_ship(s: Ship, respawn_at: Vector2) -> bool:
+static func hit_ship(s: Ship) -> bool:
 	if not can_be_hit(s):
 		return false
 	if s.shield:
@@ -145,7 +147,6 @@ static func hit_ship(s: Ship, respawn_at: Vector2) -> bool:
 	s.thrusting = false
 	s.respawn_in = RESPAWN_TIME
 	s.velocity = Vector2.ZERO
-	s.position = respawn_at
 	return true
 
 
@@ -202,6 +203,16 @@ static func split_velocities(size: int, velocity: Vector2) -> Array[Vector2]:
 	out.append(velocity.rotated(SPLIT_ANGLE) * SPLIT_SPEEDUP)
 	out.append(velocity.rotated(-SPLIT_ANGLE) * SPLIT_SPEEDUP)
 	return out
+
+
+## Whether something of `radius` moving from `from` to `to` in one tick
+## touches the circle at `center`: the closest point of the segment, so a fast
+## shot can't step over a small rock between two ticks.
+static func sweep_hits(from: Vector2, to: Vector2, radius: float, center: Vector2, center_radius: float) -> bool:
+	var seg: Vector2 = to - from
+	var len_sq: float = seg.length_squared()
+	var u: float = 0.0 if len_sq == 0.0 else clampf((center - from).dot(seg) / len_sq, 0.0, 1.0)
+	return overlaps(from + seg * u, radius, center, center_radius)
 
 
 static func overlaps(a: Vector2, radius_a: float, b: Vector2, radius_b: float) -> bool:

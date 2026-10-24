@@ -10,9 +10,14 @@ extends Node
 var owner_peer: int = 0
 ## Drive input from a wandering bot instead of the keyboard (smoke tests).
 var use_bot: bool = false
-## The bot used when use_bot is set. A player may set its own (a BotInput
-## subclass) before _ready; otherwise a wandering BotInput is made.
-var bot: BotInput = null
+## Optional `func() -> BotInput` for a game's own bot (a BotInput subclass).
+## Called once, only on the client that owns this player; otherwise a
+## wandering BotInput is used.
+var make_bot: Callable
+## The game's one button action (GameBase.action_button(), set by the
+## spawner). Only it is sent: in a game without fire, Space (also bound to
+## jump) must not send fire, and the other way round.
+var action: StringName = &""
 
 ## Latest accepted input, read by the server-side player each physics tick.
 var move: Vector2 = Vector2.ZERO
@@ -24,11 +29,15 @@ var _seq: int = 0
 ## Server: seconds since the last accepted input (see Protocol.INPUT_TIMEOUT).
 var _since_input: float = 0.0
 var _send_accum: float = 0.0
+var _bot: BotInput = null
+## The key that pressed the menu's Play button (Space is ui_accept too) may
+## still be down when the player spawns: ignore it until it's released.
+var _wait_for_release: bool = true
 
 
 func _ready() -> void:
-	if use_bot and bot == null:
-		bot = BotInput.new(owner_peer)
+	if use_bot and is_local_owner():
+		_bot = make_bot.call() as BotInput if make_bot.is_valid() else BotInput.new(owner_peer)
 
 
 func is_local_owner() -> bool:
@@ -50,19 +59,26 @@ func _physics_process(delta: float) -> void:
 	_send_accum = fmod(_send_accum, interval)
 
 	var m: Vector2
-	var j: bool
-	var f: bool
-	if use_bot and bot != null:
-		bot.update(interval)
-		m = bot.move
-		j = bot.jump
-		f = bot.fire
+	var pressed: bool
+	if _bot != null:
+		_bot.update(interval)
+		m = _bot.move
+		pressed = (action == InputSetup.JUMP and _bot.jump) or (action == InputSetup.FIRE and _bot.fire)
 	else:
 		m = Input.get_vector(InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN)
-		j = Input.is_action_pressed(InputSetup.JUMP)
-		f = Input.is_action_pressed(InputSetup.FIRE)
+		pressed = gate_button(not action.is_empty() and Input.is_action_pressed(action))
 	_seq += 1
-	submit_input.rpc_id(1, m, j, f, _seq)
+	submit_input.rpc_id(1, m, pressed and action == InputSetup.JUMP, pressed and action == InputSetup.FIRE, _seq)
+
+
+## Client: the button as sent. Held since before this player spawned counts
+## as up until it's released once.
+func gate_button(pressed: bool) -> bool:
+	if _wait_for_release:
+		if pressed:
+			return false
+		_wait_for_release = false
+	return pressed
 
 
 # "unreliable_ordered" is the correct intent: stale input is useless and newer

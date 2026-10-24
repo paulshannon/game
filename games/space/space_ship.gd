@@ -12,7 +12,8 @@ const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
 const COLORS: Array[String] = ["blue", "green", "orange", "red"]
 const SHIP_SCALE: float = 0.5
 
-## flags bits: rarely changing state, sent on change (not every snapshot).
+## flags bits. Sent with every snapshot (an int), so each change is stamped
+## with the server time it happened at and drawn at that moment.
 const ALIVE: int = 1
 const THRUST: int = 2
 const SHIELD: int = 4
@@ -44,26 +45,25 @@ var net_rotation: float = 0.0:
 		net_rotation = v
 		_net.on_rotation(net_time, v)
 
-# Replicated on change.
-var score: int = 0
+# Replicated with every snapshot, after net_time (stamped, see StateTimeline).
 var flags: int = ALIVE:
 	set(v):
 		flags = v
-		_queue_flags(v)
+		if not _net.server_side:
+			_flag_timeline.push(net_time, v)
 ## Pickups collected so far: lets clients notice each one (sound).
 var pickups: int = 0:
 	set(v):
-		if v > pickups and _arena != null and _arena.fx != null:
-			_arena.fx.play("pickup", -4.0)
 		pickups = v
+		if not _net.server_side:
+			_pickup_timeline.push(net_time, v)
 
-# Client: flags arrive as soon as they change, but the ship is drawn
-# INTERP_DELAY in the past, so each change waits until render time reaches
-# it (else a ship would vanish before it visibly touches the rock).
-var _shown_flags: int = ALIVE
-var _flag_times: PackedFloat64Array = PackedFloat64Array()
-var _flag_values: PackedInt32Array = PackedInt32Array()
-var _flags_drawn_once: bool = false
+# Replicated on change: only the scoreboard reads it, timing doesn't matter.
+var score: int = 0
+
+# Client: flags and pickups as of the render time being drawn.
+var _flag_timeline := StateTimeline.new(ALIVE)
+var _pickup_timeline := StateTimeline.new()
 
 var _body: Node2D
 var _flame: Sprite2D
@@ -76,9 +76,10 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 	_arena = arena
 	if not server_side:
 		_net.use_clock(arena.clock)   # same timeline as shots and asteroids
-	_net.setup(self, data, server_side, use_bot, PackedStringArray(["score", "flags", "pickups"]))
+	_net.setup(self, data, server_side, use_bot, PackedStringArray(["flags", "pickups"]),
+			PackedStringArray(["score"]))
 	if use_bot and not server_side:
-		_net.relay.bot = SpaceBot.new(self, arena)
+		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
 	spawn_point = data["pos"]
 	SpaceSim.respawn(state, spawn_point)
 	net_position = state.position
@@ -102,7 +103,11 @@ func color_name() -> String:
 
 ## Client: as drawn now. Server: as simulated.
 func is_alive() -> bool:
-	return (_shown_flags if not _net.server_side else flags) & ALIVE != 0
+	return _shown_flags() & ALIVE != 0
+
+
+func _shown_flags() -> int:
+	return flags if _net.server_side else _flag_timeline.current()
 
 
 ## Client: the facing being drawn (what the player sees).
@@ -153,7 +158,8 @@ func _process(_delta: float) -> void:
 	if not _net.can_render():
 		return
 	var t: float = _net.render_time()
-	_apply_flags_until(t)
+	_flag_timeline.advance(t, _on_flags_changed)
+	_pickup_timeline.advance(t, _on_pickup)
 	var p: Vector2 = _net.position_at(t)
 	if is_alive():
 		rendered_distance += position.distance_to(p)
@@ -162,39 +168,26 @@ func _process(_delta: float) -> void:
 	if r != null:
 		_body.rotation = float(r)
 	visible = is_alive()
-	_flame.visible = _shown_flags & THRUST != 0
+	var shown: int = _shown_flags()
+	_flame.visible = shown & THRUST != 0
 	_flame.scale = Vector2(0.9, randf_range(0.8, 1.15))
-	_shield.visible = _shown_flags & SHIELD != 0
+	_shield.visible = shown & SHIELD != 0
 	# Blink while invulnerable after (re)spawning.
-	_body.modulate.a = 0.45 if _shown_flags & PROTECTED != 0 and int(t * 8.0) % 2 == 0 else 1.0
+	_body.modulate.a = 0.45 if shown & PROTECTED != 0 and int(t * 8.0) % 2 == 0 else 1.0
 
 
-func _queue_flags(v: int) -> void:
-	if _net.server_side or _arena == null:
-		return
-	# Changed at about the server's "now": the newest server time the shared
-	# clock maps to (0 = before the clock syncs: apply at once).
-	var at: float = 0.0
-	if _arena.clock.is_synced():
-		at = _arena.clock.render_time(PlayerNet.now()) + Protocol.INTERP_DELAY
-	_flag_times.append(at)
-	_flag_values.append(v)
+func _on_flags_changed(before: int, after: int, at: float) -> void:
+	if before & ALIVE != 0 and after & ALIVE == 0:
+		# Where it was at that server time: the hit (it stays parked there,
+		# hidden, until it respawns).
+		_arena.fx.ship_destroyed(_net.position_at(at))
+	elif before & SHIELD != 0 and after & SHIELD == 0 and after & ALIVE != 0:
+		_arena.fx.play("shield")
 
 
-func _apply_flags_until(t: float) -> void:
-	while not _flag_times.is_empty() and _flag_times[0] <= t:
-		var after: int = _flag_values[0]
-		_flag_times.remove_at(0)
-		_flag_values.remove_at(0)
-		var before: int = _shown_flags
-		_shown_flags = after
-		if not _flags_drawn_once:   # a late joiner's first look: no effects
-			_flags_drawn_once = true
-			continue
-		if before & ALIVE != 0 and after & ALIVE == 0:
-			_arena.fx.ship_destroyed(position)
-		elif before & SHIELD != 0 and after & SHIELD == 0 and after & ALIVE != 0:
-			_arena.fx.play("shield")
+func _on_pickup(before: int, after: int, _at: float) -> void:
+	if after > before:
+		_arena.fx.play("pickup", -4.0)
 
 
 ## Every texture a ship can use, to load them before play starts.

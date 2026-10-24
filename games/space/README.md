@@ -6,7 +6,7 @@
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 
-**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire. On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic.
+**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire. On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
 
 **Players:** 1–8 (`Protocol.MAX_PLAYERS`). **Dimension:** 2D. **Port:** 9082. **URL:** `?game=space`.
 
@@ -23,16 +23,17 @@ All are CC0; see `CREDITS.md`.
 ## How it's networked
 
 - **Rules** are in `space_sim.gd`: pure functions, unit-tested in `tests/unit/test_space_sim.gd`. The server runs them; clients never decide a hit, a pickup or a score.
-- **Ships** (`SpaceShip`) use `PlayerNet` like every player. Position and rotation are sent every snapshot. `score`, `flags` (alive, thrust, shield, rapid, invulnerable) and `pickups` are sent only when they change. Clients apply a flag change when their render time reaches it, so a ship explodes where it is drawn touching the rock, not 100 ms earlier.
+- **Ships** (`SpaceShip`) use `PlayerNet` like every player. Position, rotation, `flags` (alive, thrust, shield, rapid, invulnerable) and the `pickups` count are sent every snapshot, so each change is stamped with the server time it happened at. A `StateTimeline` plays the change when render time reaches it: a ship explodes where it's drawn touching the rock, and a pickup sounds when it's drawn being collected. A late joiner gets no effects for what happened before it arrived. A destroyed ship stays parked, hidden, where it was hit until it respawns, so it never slides across the field before exploding. `score` is sent only when it changes.
 - **Asteroids, shots and pickups** (`SpaceEntity`) are spawned by the server through a second `MultiplayerSpawner` (`Game/EntitySpawner`). Their paths are fixed by the spawn data (origin, velocity, server time; asteroids bounce in closed form), so nothing is replicated after the spawn: each peer computes the position for any server time. Removing the node on the server despawns it everywhere.
 - **One clock**: ships and entities on a client are drawn at the same server time (`SpaceArena.clock`, shared through `PlayerNet.use_clock`), so a shot leaves the nose of the ship as drawn.
+- **Swept hits**: each tick tests a shot's whole path since the last tick, so a fast shot can't step over a small rock.
 - **Ghosts**: a despawn arrives while the client is still drawing 100 ms in the past. The client keeps drawing a copy (in `Game/Fx`, outside the replicated tree) until its render time reaches the removal, then explodes the rock. Shots and rocks vanish where they visibly meet.
 
 ## Smoke test
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. On top of the usual "everyone moved":
 - the **server** checks that every player fired and that rocks were destroyed;
-- **each client** checks that it drew its own shots, drew a rock explode, and received a score for its own hits.
+- **each client** checks that it drew its own shots, drew a rock explode, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|

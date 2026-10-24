@@ -80,16 +80,19 @@ func _physics_process(delta: float) -> void:
 		spawn_asteroid(SpaceSim.LARGE, _edge_point(SpaceSim.LARGE), _random_velocity(), now)
 
 	for shot: SpaceEntity in shots:
-		if SpaceSim.shot_expired(shot.origin, shot.velocity, shot.age(now)):
-			shot.queue_free()
-			continue
-		var p: Vector2 = shot.position_at(now)
+		# Swept: the whole path the shot covered this tick (~15-20 px, more
+		# than a small rock's hit radius), not just where it ended up.
+		var age: float = shot.age(now)
+		var from: Vector2 = SpaceSim.shot_position(shot.origin, shot.velocity, maxf(age - delta, 0.0))
+		var to: Vector2 = SpaceSim.shot_position(shot.origin, shot.velocity, minf(age, SpaceSim.SHOT_LIFE))
 		for rock: SpaceEntity in rocks:
-			if not rock.is_queued_for_deletion() \
-					and SpaceSim.overlaps(p, SpaceSim.SHOT_RADIUS, rock.position_at(now), rock.radius()):
+			if not rock.is_queued_for_deletion() and SpaceSim.sweep_hits(from, to, SpaceSim.SHOT_RADIUS,
+					rock.position_at(now), rock.radius()):
 				_destroy_asteroid(rock, now, _ship_of(shot.owner_peer))
 				shot.queue_free()
 				break
+		if not shot.is_queued_for_deletion() and SpaceSim.shot_expired(shot.origin, shot.velocity, age):
+			shot.queue_free()
 
 	for ship: SpaceShip in _ships():
 		var s: SpaceSim.Ship = ship.state
@@ -100,7 +103,7 @@ func _physics_process(delta: float) -> void:
 				continue
 			if SpaceSim.overlaps(s.position, SpaceSim.SHIP_RADIUS, rock.position_at(now), rock.radius()):
 				_destroy_asteroid(rock, now, null)
-				if SpaceSim.hit_ship(s, ship.spawn_point):
+				if SpaceSim.hit_ship(s):
 					ships_destroyed += 1
 					print("[server] P%d destroyed (score %d)" % [ship.player_index() + 1, s.score])
 		for pickup: SpaceEntity in pickups:

@@ -9,7 +9,7 @@ extends RefCounted
 ## keep their real spacing, and playback simply continues through them.
 ##
 ## offset = local arrival time - server send time. Its minimum over the last
-## WINDOW snapshots is the least-delayed packet, i.e. latency without the
+## WINDOW seconds of server time is the least-delayed packet, i.e. latency without the
 ## jitter; late (stalled) packets have a larger offset and don't move it. The
 ## offset used for playback chases that minimum at a limited rate, so a
 ## latency change speeds playback up or slows it down slightly instead of
@@ -21,12 +21,19 @@ extends RefCounted
 ## first players spawn): slewing out of a 2 s backlog would take 20 s, all of
 ## it drawn 2 s late. A stall can't trigger the jump: late packets only add
 ## larger offsets, never smaller ones.
+##
+## The window is server time, not a packet count, so several players can share
+## one clock (PlayerNet.use_clock): eight ships feeding it still filter jitter
+## over the same 2 s, not 2 s / 8.
 
-const WINDOW: int = 40           # ~2 s of snapshots at 20 Hz
+const WINDOW: float = 2.0        # seconds of server time
+const MAX_SAMPLES: int = 1024    # memory bound, whatever the snapshot rate
 const MAX_SLEW: float = 0.1      # offset may change by at most 0.1 s per second
 const SNAP_BEHIND: float = 0.5   # further behind than this: jump, don't slew
 
+var _times: PackedFloat64Array = PackedFloat64Array()     # server time of each sample
 var _offsets: PackedFloat64Array = PackedFloat64Array()
+var _newest: float = -INF
 var _offset: float = 0.0
 var _last_local: float = 0.0
 var _synced: bool = false
@@ -34,8 +41,11 @@ var _synced: bool = false
 
 ## Call once per received snapshot.
 func observe(server_time: float, local_time: float) -> void:
+	_times.append(server_time)
 	_offsets.append(local_time - server_time)
-	if _offsets.size() > WINDOW:
+	_newest = maxf(_newest, server_time)
+	while _offsets.size() > MAX_SAMPLES or (_offsets.size() > 1 and _times[0] < _newest - WINDOW):
+		_times.remove_at(0)
 		_offsets.remove_at(0)
 	var target: float = _offsets[0]
 	for o: float in _offsets:

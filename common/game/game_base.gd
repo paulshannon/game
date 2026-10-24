@@ -131,6 +131,9 @@ func _spawn_from_data(data: Variant) -> Node:
 	var d: Dictionary = data
 	var p: Node = _create_player(d)
 	p.name = str(d["id"])
+	var relay: InputRelay = p.get_node_or_null("InputRelay") as InputRelay
+	if relay != null:
+		relay.action = action_button()
 	return p
 
 
