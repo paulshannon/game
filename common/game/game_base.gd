@@ -87,7 +87,21 @@ func action_button() -> StringName:
 	return &""
 
 
-## The controls hint in the status line.
+## The game's names for its actions, in display order, for a controls
+## settings page (ControlsEditor).
+func control_names() -> Dictionary:
+	var names: Dictionary = {
+		InputSetup.LEFT: "Move left", InputSetup.RIGHT: "Move right",
+		InputSetup.UP: "Move up", InputSetup.DOWN: "Move down",
+	}
+	var act: StringName = action_button()
+	if not act.is_empty():
+		names[act] = InputSetup.label(act)
+	return names
+
+
+## The controls hint in the status line (games without a menu; a menu shows
+## the controls on its own settings page instead).
 func controls_help(touch: bool) -> String:
 	var act: StringName = action_button()
 	var verb: String = InputSetup.label(act).to_lower()

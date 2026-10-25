@@ -12,6 +12,14 @@ func test_space_is_a_known_game_with_its_own_port() -> void:
 			"ws://localhost:9082")
 
 
+func test_space_names_its_controls() -> void:
+	var space := SpaceArena.new()
+	var names: Dictionary = space.control_names()
+	assert_eq(names[InputSetup.UP], "Thrust")
+	assert_eq(names.keys(), [InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN, InputSetup.FIRE])
+	space.free()
+
+
 func test_only_space_has_a_menu() -> void:
 	var space := SpaceArena.new()
 	var menu: GameMenu = space.make_menu()
@@ -61,3 +69,24 @@ func test_play_hides_menu_and_requests_join() -> void:
 	assert_true(fired[0])
 	assert_false(m.visible)
 	m.free()
+
+
+func test_controls_page_opens_and_closes() -> void:
+	var space := SpaceArena.new()
+	var m: SpaceMenu = space.make_menu()
+	m._ready()
+	var main: Control = m.get_node("Root/Center/Column/Panel")
+	var page: Control = m.get_node("Root/Center/Column/ControlsPanel")
+	assert_false(page.visible)
+	(m.get_node("Root/Center/Column/Panel/Items/Controls") as Button).pressed.emit()
+	assert_true(page.visible)
+	assert_false(main.visible)
+	assert_eq((m.get_node("Root/Center/Column/ControlsPanel/Items/Editor/Grid/move_up_0") as Button).text, "W")
+	(m.get_node("Root/Center/Column/ControlsPanel/Items/Editor/Bar/Back") as Button).pressed.emit()
+	assert_true(main.visible)
+	assert_false(page.visible)
+	m.show_controls()
+	m.show_menu("Disconnected from server", "Rejoin")
+	assert_true(main.visible, "the menu comes back on its main page")
+	m.free()
+	space.free()

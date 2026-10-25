@@ -60,6 +60,7 @@ func _start_client() -> void:
 	add_child(_hud)
 	var touch: bool = DisplayServer.is_touchscreen_available()
 	if not _config.bot:
+		InputBindings.load_saved()  # the player's remapped controls, if any
 		# Child of Main, not the game, so it survives the game being rebuilt
 		# after a disconnect. Harmless on non-touch screens: draws nothing
 		# until a touch arrives.
@@ -71,10 +72,11 @@ func _start_client() -> void:
 			_menu.name = "Menu"
 			add_child(_menu)
 			_menu.play_requested.connect(_join)
-	var help: String = _game.controls_help(touch)
+	# A game with a menu shows its controls on the menu's settings page.
+	var help: String = "" if _menu != null else "  —  " + _game.controls_help(touch)
 	Net.connected.connect(func(id: int) -> void:
 		_connects += 1
-		_hud.set_status("Connected  —  " + help)
+		_hud.set_status("Connected" + help)
 		print("[client] connected as peer %d" % id))
 	Net.connection_failed.connect(func() -> void:
 		print("[client] connection failed: %s" % _config.url)

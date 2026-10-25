@@ -11,6 +11,10 @@ extends GameBase
 ##   Game/Director        <- server only (SpaceDirector)
 ##   Game/Fx, Scoreboard  <- client only (SpaceFx, SpaceScoreboard)
 
+## How the touch controls work, shown on the menu's Controls page on touch
+## screens (they can't be remapped).
+const TOUCH_HELP: String = "Touch: the stick's left/right turns, pushing it up thrusts; tap Fire to shoot."
+
 var entities_root: Node
 var entity_spawner: MultiplayerSpawner
 var director: SpaceDirector
@@ -86,17 +90,18 @@ func _spawn_roots() -> Array[Node]:
 
 
 func make_menu() -> GameMenu:
-	return SpaceMenu.new()
+	return SpaceMenu.new(control_names(), TOUCH_HELP if DisplayServer.is_touchscreen_available() else "")
 
 
 func action_button() -> StringName:
 	return InputSetup.FIRE
 
 
-func controls_help(touch: bool) -> String:
-	if touch:
-		return "stick: left/right turns, up thrusts  ·  tap Fire to shoot"
-	return "Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire"
+func control_names() -> Dictionary:
+	return {
+		InputSetup.LEFT: "Turn left", InputSetup.RIGHT: "Turn right",
+		InputSetup.UP: "Thrust", InputSetup.DOWN: "Brake", InputSetup.FIRE: "Fire",
+	}
 
 
 func _spawn_position(index: int) -> Variant:
