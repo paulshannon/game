@@ -9,6 +9,8 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 ### Added
 - **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
 - `fire` input action (Space) and a touch **Fire** button. Games choose their action with `GameBase.action_button()` (which replaces `uses_jump()`); only that button is sent, and a key still held from the menu's Play button is ignored until released.
+- **Space: Controls settings page** (#26): remap every action to two keys and two controller inputs from the main menu, saved in the browser (or `user://`) and restored at startup. The controls hint is no longer shown on the play screen. Generic pieces for other games' menus: `ControlsEditor`, `InputBindings`, `GameBase.control_names()`.
+- Controller support: left stick and D-pad move, A (and RT for fire) presses the game's action button, on any connected controller.
 - `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
 
 ### Fixed

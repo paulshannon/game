@@ -6,7 +6,7 @@
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 
-**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire. On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
+**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire; on a controller, left stick or D-pad, A or RT to fire. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
 
 **Players:** 1–8 (`Protocol.MAX_PLAYERS`). **Dimension:** 2D. **Port:** 9082. **URL:** `?game=space`.
 
@@ -18,7 +18,10 @@
 
 All are CC0; see `CREDITS.md`.
 
-**Menu:** Play joins the match (Enter / Space / gamepad work too: Play has focus). Quit only appears outside the browser. After a lost connection the menu comes back with the reason and **Rejoin** / **Try again**. Bots (smoke tests) skip it.
+**Menu:** Play joins the match (Enter / Space / gamepad work too: Play has focus). **Controls** opens the settings page: two keys and two controller inputs per action (`ControlsEditor`, `InputBindings`). Pick a slot, then press a key, a button, or push a stick or trigger; Esc or a click cancels, an input already used by another action moves to the new one, and Reset restores the defaults. Changes are saved at once to `user://controls.cfg` (in the browser: its IndexedDB) and loaded at startup. On touch screens the page also explains the touch controls, which can't be remapped. The controls aren't described on the play screen any more. Quit only appears outside the browser.
+
+![The Controls page](../../docs/screenshots/space-controls.png)
+ After a lost connection the menu comes back with the reason and **Rejoin** / **Try again**. Bots (smoke tests) skip it.
 
 ## How it's networked
 
@@ -45,7 +48,7 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
 | `space_scoreboard.gd` | client | scores, top-right |
 | `space_bot.gd` | client (bots) | aiming smoke-test pilot |
-| `space_menu.gd` | client | the main menu (`GameMenu` subclass) |
+| `space_menu.gd` | client | the main menu (`GameMenu` subclass) and its Controls page |
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |
 | `starfield.gd` | client | procedural twinkling star field (menu background and arena backdrop) |
 

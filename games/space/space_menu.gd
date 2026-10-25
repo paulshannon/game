@@ -1,12 +1,27 @@
 class_name SpaceMenu
 extends GameMenu
 ## Main menu for the space game: star field, title, and a Kenney sci-fi panel
-## with Play (and Quit outside the browser, where quitting means nothing).
-## After a lost connection main.gd shows it again with the reason and
-## "Rejoin" / "Try again" on the Play button.
+## with Play, Controls (remapping, ControlsEditor) and Quit (outside the
+## browser, where quitting means nothing). After a lost connection main.gd
+## shows it again with the reason and "Rejoin" / "Try again" on Play.
 
 var _play: Button
 var _status: Label
+var _main_panel: PanelContainer
+var _controls_panel: PanelContainer
+var _controls: ControlsEditor
+var _title: Label
+var _credit: Label
+var _control_names: Dictionary
+var _touch_help: String
+
+
+## `control_names`: action -> label for the Controls page
+## (GameBase.control_names()); `touch_help` is shown under it.
+func _init(control_names: Dictionary = {}, touch_help: String = "") -> void:
+	super._init()
+	_control_names = control_names
+	_touch_help = touch_help
 
 
 func _ready() -> void:
@@ -30,6 +45,7 @@ func _ready() -> void:
 	center.add_child(column)
 
 	var title := Label.new()
+	_title = title
 	title.name = "Title"
 	title.text = "SPACE"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -39,9 +55,13 @@ func _ready() -> void:
 	title.add_theme_constant_override("outline_size", 10)
 	column.add_child(title)
 
-	column.add_child(_build_panel())
+	_main_panel = _build_panel()
+	column.add_child(_main_panel)
+	_controls_panel = _build_controls()
+	column.add_child(_controls_panel)
 
 	var credit := Label.new()
+	_credit = credit
 	credit.text = "v%s  ·  UI art: Kenney (kenney.nl), CC0" % ProjectSettings.get_setting("application/config/version", "dev")
 	credit.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	credit.add_theme_font_size_override("font_size", 14)
@@ -53,22 +73,8 @@ func _ready() -> void:
 
 
 func _build_panel() -> PanelContainer:
-	var panel := PanelContainer.new()
-	panel.name = "Panel"
-	panel.custom_minimum_size = Vector2(420, 0)
-	var box := VBoxContainer.new()
-	box.name = "Items"
-	box.add_theme_constant_override("separation", 16)
-	panel.add_child(box)
-
-	var header := Label.new()
-	header.name = "Header"
-	header.text = "Main menu"
-	header.custom_minimum_size = Vector2(0, SpaceUi.HEADER_HEIGHT)
-	header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	header.add_theme_color_override("font_color", Color.WHITE)
-	header.add_theme_font_size_override("font_size", 16)
-	box.add_child(header)
+	var panel := _panel("Panel", "Main menu")
+	var box: VBoxContainer = panel.get_node("Items")
 
 	_status = Label.new()
 	_status.name = "Status"
@@ -80,9 +86,60 @@ func _build_panel() -> PanelContainer:
 
 	_play = _button("Play", request_play)
 	box.add_child(_play)
+	box.add_child(_button("Controls", show_controls))
 	if not OS.has_feature("web"):  # a browser tab can't quit itself
 		box.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	return panel
+
+
+## The Controls page: a second panel in place of the main one, so the title
+## and credit hide to leave room for the table.
+func _build_controls() -> PanelContainer:
+	var panel := _panel("ControlsPanel", "Controls")
+	_controls = ControlsEditor.new(_control_names, _touch_help)
+	_controls.name = "Editor"
+	_controls.closed.connect(show_main)
+	panel.get_node("Items").add_child(_controls)
+	panel.visible = false
+	return panel
+
+
+## A sci-fi panel whose first child (in "Items") sits on the blue header strip.
+func _panel(panel_name: String, header_text: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.name = panel_name
+	panel.custom_minimum_size = Vector2(420, 0)
+	var box := VBoxContainer.new()
+	box.name = "Items"
+	box.add_theme_constant_override("separation", 16)
+	panel.add_child(box)
+
+	var header := Label.new()
+	header.name = "Header"
+	header.text = header_text
+	header.custom_minimum_size = Vector2(0, SpaceUi.HEADER_HEIGHT)
+	header.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header.add_theme_color_override("font_color", Color.WHITE)
+	header.add_theme_font_size_override("font_size", 16)
+	box.add_child(header)
+	return panel
+
+
+func show_controls() -> void:
+	_set_page(true)
+	_controls.focus_first()
+
+
+func show_main() -> void:
+	_set_page(false)
+	_on_visibility_changed()
+
+
+func _set_page(controls: bool) -> void:
+	_main_panel.visible = not controls
+	_controls_panel.visible = controls
+	_title.visible = not controls
+	_credit.visible = not controls
 
 
 func _button(text: String, on_press: Callable) -> Button:
@@ -95,6 +152,7 @@ func _button(text: String, on_press: Callable) -> Button:
 
 
 func _apply(status: String, play_text: String) -> void:
+	_set_page(false)
 	_status.text = status
 	_status.visible = not status.is_empty()
 	_play.text = play_text

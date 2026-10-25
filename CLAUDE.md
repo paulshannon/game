@@ -37,7 +37,8 @@ common/
   game/player_net.gd       PlayerNet: relay + synchronizer + interpolation every player uses
   game/player_slots.gd     PlayerSlots: reusable seats (match-full check, spawn index)
 client/                    SnapshotBuffer/SnapshotClock (interpolation), StateTimeline (discrete
-                           state on the server timeline), InputSetup (actions),
+                           state on the server timeline), InputSetup (actions + default bindings),
+                           InputBindings (remap + save), ControlsEditor (settings page),
                            TouchControls + TouchStick (on-screen stick + action button), Hud, GameMenu
 games/<name>/              one folder per prototype + README.md (core loop, players, packs):
                            box_arena_2d, box_arena_3d, space (2D: asteroids, shots, pickups,
@@ -96,7 +97,7 @@ Kenney character GLBs include animations. Drive them from an `AnimationTree` on 
 Clients send **input**. The server simulates and replicates **state**. Clients render state. Never let a client tell the server its position, score or hit result, even in a prototype — retrofitting authority means rewriting every gameplay script.
 
 ### How a frame flows (read these files in order)
-1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand). On touch screens `client/input/touch_controls.gd` presses the **same actions** with analog strength (floating stick on the left half, an action button bottom-right for the game's `GameBase.action_button()`, e.g. Jump or Fire), so nothing downstream knows touch exists. Never add a touch-only input path to the protocol.
+1. `client/input/input_setup.gd` — actions defined in code (the `[input]` section of `project.godot` is serialized objects; easy to corrupt by hand). On touch screens `client/input/touch_controls.gd` presses the **same actions** with analog strength (floating stick on the left half, an action button bottom-right for the game's `GameBase.action_button()`, e.g. Jump or Fire), so nothing downstream knows touch exists. Never add a touch-only input path to the protocol. Default bindings (two keys + two controller inputs per action) are in `InputSetup.default_bindings`; players remap them on a menu's Controls page (`ControlsEditor`), and `InputBindings` rewrites the InputMap and saves to `user://controls.cfg`, loaded by `main.gd` for people (not bots).
 2. `common/net/input_relay.gd` — on the owning client, sends `submit_input(move, jump, fire, seq)` to the server at `Protocol.INPUT_HZ`. Only the game's own button (`GameBase.action_button()`) is ever sent as pressed, and a key still held when the player spawns (Space on the menu's Play button) counts as up until it's released. On the server, validates sender == owner, drops stale `seq`, sanitizes. Input older than `Protocol.INPUT_TIMEOUT` (250 ms) counts as released, so a backgrounded tab or stalled network can't hold a key down forever.
 3. `games/*/player_*.gd` `_physics_process` (server only) — `ArenaSim.step_*` → writes `net_time` (server clock) + `net_position` / `net_rotation`.
 4. `common/net/replication.gd` — a `MultiplayerSynchronizer` sends those at `Protocol.SNAPSHOT_HZ` (20 Hz). Authority stays with the server.
