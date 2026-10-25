@@ -83,7 +83,7 @@ The repo uses **git-flow**:
 1. `git switch -c release/v0.1.0 develop`
 2. Set `config/version="0.1.0"` in `project.godot` (`tools/version.sh` prints it), and in `CHANGELOG.md` rename **Unreleased** to `[0.1.0] - YYYY-MM-DD`. Run `tools/verify.sh`.
 3. Open a PR `release/v0.1.0` → `main`. After CI passes, merge it.
-4. Tag the merge commit and push the tag: `git switch main && git pull && git tag v0.1.0 && git push origin v0.1.0`.
+4. Tag **the merge commit on `main`** and push the tag: `git fetch origin && git tag -a v0.1.0 origin/main -m v0.1.0 && git push origin v0.1.0`. Use git rather than GitHub's "Draft a new release" page. That page creates the Release itself, with generated notes and no files; the workflow will adopt it, but the git route is the intended one. `release.yml` rejects a tag that isn't on `main`'s own merge line.
 5. Merge `main` back into `develop` (PR) so the version and changelog land there too, and add a fresh **Unreleased** section.
 
 Pushing the tag runs `.github/workflows/release.yml`. It checks that the tag matches `project.godot`, is on `main` and has changelog notes; re-runs the full CI on the tagged commit; then creates a **GitHub Release** with `game-web-vX.Y.Z.zip`, `game-server-linux-x86_64-vX.Y.Z` and `SHA256SUMS`; and publishes that release's web build to **GitHub Pages**. Nothing is published if any step fails. A hotfix is the same with `hotfix/vX.Y.Z` branched from `main`.
