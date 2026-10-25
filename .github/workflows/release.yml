@@ -74,12 +74,23 @@ jobs:
           (cd dist && sha256sum * > SHA256SUMS && cat SHA256SUMS)
           tools/release_notes.sh "$V" > notes.md
 
-      - name: Create GitHub Release
+      # Normally the tag is pushed with git and this creates the Release. If
+      # someone made the tag through GitHub's "Draft a new release" page, a
+      # Release with GitHub's generated notes and no files already exists:
+      # adopt it (our title, CHANGELOG notes, the verified files) instead of
+      # failing. Re-running the job is safe for the same reason.
+      - name: Create or update the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
-            --verify-tag --title "v$V" --notes-file notes.md
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; updating it."
+            gh release edit "$GITHUB_REF_NAME" --title "v$V" --notes-file notes.md --draft=false
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --verify-tag --title "v$V" --notes-file notes.md
+          fi
           echo "Release: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME" >> "$GITHUB_STEP_SUMMARY"
 
   image:
