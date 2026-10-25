@@ -26,7 +26,7 @@ const TURN_RIGHT: int = 128
 
 ## RCS thrusters, in the body's frame (+x is the nose, +y the right side).
 const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
-const RCS_SCALE: float = 0.55
+const RCS_SCALE: float = 0.41
 const NOSE_X: float = 14.0
 const TAIL_X: float = -14.0
 const NOSE_Y: float = 9.0
