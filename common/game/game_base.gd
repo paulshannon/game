@@ -50,6 +50,25 @@ func start_server() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 
 
+## Server, before the game leaves the tree: free everything the spawners
+## track while they're still in the tree, so each one untracks its nodes
+## normally. A spawner that leaves the tree first (a later sibling of its
+## spawn root does) untracks them itself, and Godot 4.7 release builds log
+## "Attempt to disconnect a nonexistent connection ... tree_exiting" for
+## each node still there.
+func free_spawned() -> void:
+	if not config.is_server:
+		return
+	for root: Node in _spawn_roots():
+		for n: Node in root.get_children():
+			n.free()
+
+
+## Every spawner's spawn_path root. Games with more spawners add theirs.
+func _spawn_roots() -> Array[Node]:
+	return [players_root]
+
+
 func local_player() -> Node:
 	if not Net.is_online():
 		return null

@@ -4,11 +4,11 @@ extends RefCounted
 ## the page URL (web). Parsing is pure so it can be unit-tested.
 ##
 ## Native:  godot --path . -- --server --game=3d --port=9081 [--bind=127.0.0.1]
-##          godot --path . -- --client --game=2d --url=ws://127.0.0.1:9080 --bot
+##          godot --path . -- --client --game=space --url=ws://127.0.0.1:9082 --bot
 ## Web:     index.html?game=3d&server=wss://example.com/ws/3d
 
 var is_server: bool = false
-var game: String = "2d"
+var game: String = Protocol.DEFAULT_GAME
 var port: int = 0
 ## Server listen address. "*" = all interfaces (dev). Use 127.0.0.1 behind a
 ## reverse proxy so the raw, unencrypted port is not exposed to the internet.
@@ -66,7 +66,7 @@ static func from_args(args: PackedStringArray) -> LaunchConfig:
 static func from_web_location(protocol: String, host: String, hostname: String, search: String) -> LaunchConfig:
 	var cfg := LaunchConfig.new()
 	var query: Dictionary = parse_query(search)
-	cfg.game = _normalize_game(str(query.get("game", "2d")))
+	cfg.game = _normalize_game(str(query.get("game", Protocol.DEFAULT_GAME)))
 	cfg.port = Protocol.port_for(cfg.game)
 	cfg.bot = query.has("bot")
 	if query.has("server"):
@@ -97,7 +97,7 @@ static func parse_query(search: String) -> Dictionary:
 
 static func _normalize_game(value: String) -> String:
 	var v: String = value.to_lower()
-	return v if Protocol.PORTS.has(v) else "2d"
+	return v if Protocol.PORTS.has(v) else Protocol.DEFAULT_GAME
 
 
 static func _js_string(expr: String) -> String:

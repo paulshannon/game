@@ -18,21 +18,21 @@ tools/verify.sh                      # compile + unit tests + multiplayer smoke 
 Play locally with native windows (fastest loop):
 
 ```bash
-tools/run_server.sh 2d               # terminal 1  (or 3d)
-tools/run_client.sh 2d               # terminal 2
-tools/run_client.sh 2d               # terminal 3 — a second player
-tools/run_client.sh 2d "" --bot      # or a bot player
+tools/run_server.sh                  # terminal 1  (space; or 2d / 3d)
+tools/run_client.sh                  # terminal 2
+tools/run_client.sh                  # terminal 3 — a second player
+tools/run_client.sh space "" --bot   # or a bot player
 ```
 
 Play in the browser:
 
 ```bash
 tools/export.sh web
-tools/run_server.sh 2d               # terminal 1
-tools/serve_web.sh                   # terminal 2 → open http://localhost:8000/?game=2d
+tools/run_server.sh                  # terminal 1
+tools/serve_web.sh                   # terminal 2 → open http://localhost:8000/
 ```
 
-Open the page in two tabs to see two players. Controls: WASD / arrows, Space to jump (3D). On a touch screen (iPad, phone): drag on the left half to move (floating stick), tap **Jump** bottom-right (3D). The space game (`?game=space`) is an asteroid shooter: turn with left/right, thrust with up, fire with Space or the touch **Fire** button (see [games/space/README.md](games/space/README.md)).
+Open the page in two tabs to see two players. Space is the default game (no `--game` / `?game=`): an asteroid shooter. Turn with left/right, thrust with up, fire with Space or the touch **Fire** button (see [games/space/README.md](games/space/README.md)). The box arenas are `2d` / `?game=2d` and `3d` / `?game=3d`: WASD / arrows, Space to jump (3D); on a touch screen, drag on the left half to move (floating stick) and tap **Jump** bottom-right (3D).
 
 Use the editor normally too: `.tools/godot -e --path .` (or your own Godot 4.7.1). To run server + clients from the editor, set *Debug → Customize Run Instances* with `-- --server` for one instance and `-- --client` for the others.
 
