@@ -1,12 +1,12 @@
 extends TestCase
 
 
-func test_defaults_to_2d_client_localhost() -> void:
+func test_defaults_to_space_client_localhost() -> void:
 	var c: LaunchConfig = LaunchConfig.from_args(PackedStringArray())
 	assert_false(c.is_server)
-	assert_eq(c.game, "2d")
-	assert_eq(c.port, Protocol.port_for("2d"))
-	assert_eq(c.url, "ws://127.0.0.1:%d" % Protocol.port_for("2d"))
+	assert_eq(c.game, "space")
+	assert_eq(c.port, Protocol.port_for("space"))
+	assert_eq(c.url, "ws://127.0.0.1:%d" % Protocol.port_for("space"))
 
 
 func test_server_args() -> void:
@@ -25,7 +25,7 @@ func test_bind_address() -> void:
 
 
 func test_unknown_game_falls_back() -> void:
-	assert_eq(LaunchConfig.from_args(PackedStringArray(["--game=pong"])).game, "2d")
+	assert_eq(LaunchConfig.from_args(PackedStringArray(["--game=pong"])).game, "space")
 
 
 func test_web_https_uses_wss_proxy_path() -> void:
@@ -35,7 +35,8 @@ func test_web_https_uses_wss_proxy_path() -> void:
 
 func test_web_http_uses_direct_port() -> void:
 	var c: LaunchConfig = LaunchConfig.from_web_location("http:", "localhost:8000", "localhost", "")
-	assert_eq(c.url, "ws://localhost:%d" % Protocol.port_for("2d"))
+	assert_eq(c.game, "space", "no ?game= opens the default game")
+	assert_eq(c.url, "ws://localhost:%d" % Protocol.port_for("space"))
 
 
 func test_web_explicit_server_wins() -> void:

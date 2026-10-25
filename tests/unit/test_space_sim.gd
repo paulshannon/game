@@ -204,3 +204,30 @@ func test_sweep_misses_what_the_path_misses() -> void:
 			"rock behind the start")
 	assert_true(SpaceSim.sweep_hits(Vector2(5, 0), Vector2(5, 0), SpaceSim.SHOT_RADIUS, Vector2.ZERO, r),
 			"zero-length path is a point test")
+
+
+func test_thruster_state_follows_the_stick() -> void:
+	var s := _ship()
+	SpaceSim.step_ship(s, Vector2(0, 1), false, DT)
+	assert_true(s.braking, "down fires the reverse thrusters")
+	assert_false(s.thrusting)
+	SpaceSim.step_ship(s, Vector2(-1, 0), false, DT)
+	assert_false(s.braking)
+	assert_eq(s.turning, -1, "left")
+	SpaceSim.step_ship(s, Vector2(0.5, -1), false, DT)
+	assert_eq(s.turning, 1, "right")
+	assert_true(s.thrusting)
+	SpaceSim.step_ship(s, Vector2(0.05, 0.05), false, DT)
+	assert_eq(s.turning, 0, "a resting stick fires nothing")
+	assert_false(s.braking)
+
+
+func test_dead_ship_fires_no_thrusters() -> void:
+	var s := _ship()
+	SpaceSim.step_ship(s, Vector2(1, 1), false, DT)
+	SpaceSim.hit_ship(s)
+	assert_false(s.braking)
+	assert_eq(s.turning, 0)
+	SpaceSim.step_ship(s, Vector2(1, 1), false, DT)
+	assert_false(s.braking)
+	assert_eq(s.turning, 0)
