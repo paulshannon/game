@@ -3,11 +3,14 @@ extends RefCounted
 ## Shared network constants. Client and server MUST agree on these, so they
 ## live in one place. Change them here, never inline in game scripts.
 
+## The game you get when none is named (no --game, no ?game=, or an unknown one).
+const DEFAULT_GAME: String = "space"
+
 ## One port per game so a single VPS can run both prototypes side by side.
-const PORTS: Dictionary = {
+const PORTS: Dictionary = {   # in menu order (tools/make_site.sh lists them so)
+	"space": 9082,
 	"2d": 9080,
 	"3d": 9081,
-	"space": 9082,
 }
 
 ## Server simulation runs on the physics tick (project setting: 60 Hz).
@@ -39,4 +42,4 @@ const MAX_PLAYERS: int = 8
 
 
 static func port_for(game: String) -> int:
-	return int(PORTS.get(game, PORTS["2d"]))
+	return int(PORTS.get(game, PORTS[DEFAULT_GAME]))

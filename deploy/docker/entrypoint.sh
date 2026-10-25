@@ -1,6 +1,6 @@
 #!/bin/sh
 # Container entrypoint: one game server per container.
-#   GAME  2d | 3d | space   (default 2d)
+#   GAME  space | 2d | 3d   (default space)
 #   PORT  listen port inside the container (default 9080, whatever the game;
 #         map it to anything on the host)
 # Extra arguments are passed to the server after its own, e.g.
@@ -11,7 +11,7 @@
 # timeout and SIGKILL it. (Same job as tini, without installing anything.)
 set -eu
 /app/server.x86_64 --headless -- --server \
-	--game="${GAME:-2d}" --port="${PORT:-9080}" --bind=0.0.0.0 "$@" &
+	--game="${GAME:-space}" --port="${PORT:-9080}" --bind=0.0.0.0 "$@" &
 pid=$!
 trap 'kill -TERM "$pid" 2>/dev/null' TERM INT
 # The first wait returns early when a trapped signal arrives; wait again for

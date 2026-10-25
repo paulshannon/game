@@ -134,7 +134,7 @@ For true unreliable transport (fast shooters) or peer-to-peer. Needs a WebSocket
 
 - Presets live in `export_presets.cfg`: **Web** (thread support off, desktop + mobile VRAM compression) and **Linux Server** (`dedicated_server=true`, strips visuals, embedded pck). Tests, tools and deploy files are excluded from exports.
 - Web clients wait for a **click to join**: browsers only allow audio after a user gesture.
-- The page picks its server from the URL (`LaunchConfig.from_web_location`): `?game=2d|3d`, optional `&server=wss://...`. On HTTPS the default is `wss://<same host>/ws/<game>` — what `deploy/Caddyfile` serves. On plain HTTP (local dev) it's `ws://<hostname>:<game port>`.
+- The page picks its server from the URL (`LaunchConfig.from_web_location`): `?game=space|2d|3d` (default `Protocol.DEFAULT_GAME`, space), optional `&server=wss://...`. On HTTPS the default is `wss://<same host>/ws/<game>` — what `deploy/Caddyfile` serves. On plain HTTP (local dev) it's `ws://<hostname>:<game port>`.
 - **HTTPS pages can only open `wss://`**; the Godot server speaks `ws://`, so production terminates TLS in Caddy and runs servers with `--bind=127.0.0.1`.
 - Compatibility renderer budget: one directional light, no SDFGI/volumetric fog/SSR, `MultiMeshInstance3D` for repeated props, low-poly Kenney kits.
 - Test in Chrome **and** Safari before calling a web change done; Safari usually breaks first.

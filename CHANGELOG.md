@@ -6,6 +6,9 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+### Changed
+- **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
+
 ### Added
 - **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
 - `fire` input action (Space) and a touch **Fire** button. Games choose their action with `GameBase.action_button()` (which replaces `uses_jump()`); only that button is sent, and a key still held from the menu's Play button is ignored until released.
