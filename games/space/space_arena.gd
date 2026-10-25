@@ -22,6 +22,7 @@ var fx: SpaceFx
 # Smoke test (client): latched every frame, like GameBase's.
 var _best_own_score: int = 0
 var _best_score_seen: int = 0
+var _own_rcs_frames: int = 0
 
 
 func _ready() -> void:
@@ -124,11 +125,13 @@ func _process(delta: float) -> void:
 		_best_score_seen = maxi(_best_score_seen, ship.score)
 		if ship == own:
 			_best_own_score = maxi(_best_own_score, ship.score)
+			_own_rcs_frames = maxi(_own_rcs_frames, ship.rcs_frames)
 
 
 ## On top of "everyone moved": the server saw every player shoot and rocks
-## destroyed; each client drew its own shots, drew an asteroid explode, and
-## received a score from the server. Any ship's score counts, not only its
+## destroyed; each client drew its own shots, drew an asteroid explode, drew
+## its own ship's RCS thrusters (bots turn constantly), and received a score
+## from the server. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
 ## may spend 2 s of it dead), and the replication path is the same.
 func smoke_report() -> Dictionary:
@@ -145,7 +148,8 @@ func smoke_report() -> Dictionary:
 	report["own_shots_seen"] = fx.own_shots_seen
 	report["explosions_seen"] = fx.explosions_seen
 	report["own_score"] = _best_own_score
+	report["own_rcs_frames"] = _own_rcs_frames
 	report["best_score_seen"] = _best_score_seen
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
-			and _best_score_seen > 0
+			and _best_score_seen > 0 and _own_rcs_frames > 0
 	return report

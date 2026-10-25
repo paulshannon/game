@@ -63,6 +63,10 @@ class Ship:
 	var rotation: float = -PI / 2.0
 	var alive: bool = true
 	var thrusting: bool = false
+	## Firing the reverse thrusters (down on the stick): clients draw RCS puffs.
+	var braking: bool = false
+	## -1 turning left (anticlockwise), 1 right, 0 not turning. Cosmetic too.
+	var turning: int = 0
 	var cooldown: float = 0.0
 	var respawn_in: float = 0.0
 	var protected_for: float = 0.0
@@ -83,13 +87,15 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
 	s.rapid_for = maxf(s.rapid_for - delta, 0.0)
 	if not s.alive:
 		s.respawn_in = maxf(s.respawn_in - delta, 0.0)
-		s.thrusting = false
+		_stop_thrusters(s)
 		return false
 
 	var m: Vector2 = ArenaSim.sanitize_move(move)
 	s.rotation = wrapf(s.rotation + m.x * TURN_SPEED * delta, -PI, PI)
 	var push: float = -m.y
 	s.thrusting = push > 0.1
+	s.braking = push < -0.1
+	s.turning = 0 if absf(m.x) < 0.1 else (1 if m.x > 0.0 else -1)
 	var accel: float = THRUST if push > 0.0 else REVERSE_THRUST
 	s.velocity += facing(s) * push * accel * delta
 	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(MAX_SPEED)
@@ -100,6 +106,12 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
 		s.cooldown = RAPID_COOLDOWN if s.rapid_for > 0.0 else FIRE_COOLDOWN
 		return true
 	return false
+
+
+static func _stop_thrusters(s: Ship) -> void:
+	s.thrusting = false
+	s.braking = false
+	s.turning = 0
 
 
 static func _bounce(s: Ship) -> void:
@@ -144,7 +156,7 @@ static func hit_ship(s: Ship) -> bool:
 		s.protected_for = SHIELD_GRACE
 		return false
 	s.alive = false
-	s.thrusting = false
+	_stop_thrusters(s)
 	s.respawn_in = RESPAWN_TIME
 	s.velocity = Vector2.ZERO
 	return true

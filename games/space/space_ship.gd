@@ -6,7 +6,8 @@ extends Node2D
 ##
 ## Server: steps SpaceSim from InputRelay, writes the net_* props.
 ## Client: PlayerNet buffers and interpolates them; this draws the Kenney
-## ship, its flame and shield, and plays the explosion when it dies.
+## ship, its flame, RCS puffs (braking, turning) and shield, and plays the
+## explosion when it dies.
 
 const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
 const COLORS: Array[String] = ["blue", "green", "orange", "red"]
@@ -19,10 +20,23 @@ const THRUST: int = 2
 const SHIELD: int = 4
 const RAPID: int = 8
 const PROTECTED: int = 16
+const BRAKE: int = 32
+const TURN_LEFT: int = 64
+const TURN_RIGHT: int = 128
+
+## RCS thrusters, in the body's frame (+x is the nose, +y the right side).
+const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
+const RCS_SCALE: float = 0.55
+const NOSE_X: float = 14.0
+const TAIL_X: float = -14.0
+const NOSE_Y: float = 9.0
+const TAIL_Y: float = 20.0          # out at the wingtips, clear of the hull
 
 ## Server: total distance flown. Client: total distance drawn. Smoke tests read these.
 var traveled: float = 0.0
 var rendered_distance: float = 0.0
+## Client: frames drawn with an RCS thruster firing (smoke test).
+var rcs_frames: int = 0
 
 ## Server-side rules state. SpaceDirector reads and changes it too.
 var state := SpaceSim.Ship.new()
@@ -68,6 +82,8 @@ var _pickup_timeline := StateTimeline.new()
 var _body: Node2D
 var _flame: Sprite2D
 var _shield: Sprite2D
+# Client: RCS puffs by flag bit (BRAKE, TURN_LEFT, TURN_RIGHT).
+var _rcs: Dictionary = {}   # int -> Array[Sprite2D]
 var _label: Label
 
 
@@ -145,6 +161,12 @@ func publish() -> void:
 		f |= ALIVE
 	if state.thrusting:
 		f |= THRUST
+	if state.braking:
+		f |= BRAKE
+	if state.turning < 0:
+		f |= TURN_LEFT
+	elif state.turning > 0:
+		f |= TURN_RIGHT
 	if state.shield:
 		f |= SHIELD
 	if state.rapid_for > 0.0:
@@ -171,6 +193,15 @@ func _process(_delta: float) -> void:
 	var shown: int = _shown_flags()
 	_flame.visible = shown & THRUST != 0
 	_flame.scale = Vector2(0.9, randf_range(0.8, 1.15))
+	var rcs: bool = false
+	for bit: int in _rcs:
+		var on: bool = shown & bit != 0
+		rcs = rcs or on
+		for puff: Sprite2D in _rcs[bit]:
+			puff.visible = on
+			puff.scale = Vector2.ONE * RCS_SCALE * randf_range(0.75, 1.1)
+	if rcs and visible:
+		rcs_frames += 1
 	_shield.visible = shown & SHIELD != 0
 	# Blink while invulnerable after (re)spawning.
 	_body.modulate.a = 0.45 if shown & PROTECTED != 0 and int(t * 8.0) % 2 == 0 else 1.0
@@ -192,7 +223,7 @@ func _on_pickup(before: int, after: int, _at: float) -> void:
 
 ## Every texture a ship can use, to load them before play starts.
 static func texture_paths() -> Array[String]:
-	var out: Array[String] = [PACK + "Effects/fire08.png", PACK + "Effects/shield1.png"]
+	var out: Array[String] = [PACK + "Effects/fire08.png", PACK + "Effects/shield1.png", RCS_TEXTURE]
 	for shape: int in range(1, 4):
 		for c: String in COLORS:
 			out.append(PACK + "playerShip%d_%s.png" % [shape, c])
@@ -231,6 +262,23 @@ func _build_visuals() -> void:
 	_shield.visible = false
 	art.add_child(_shield)
 
+	# RCS: braking fires both nose thrusters forward. Turning fires a nose and
+	# a tail thruster on opposite sides, pushing the nose round: turning right
+	# (clockwise) blows the nose's left side and the tail's right side.
+	var rcs_tex: Texture2D = load(RCS_TEXTURE) as Texture2D
+	_rcs[BRAKE] = [
+		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2(1, -0.35)),
+		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2(1, 0.35)),
+	]
+	_rcs[TURN_RIGHT] = [
+		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2.UP),
+		_add_rcs(rcs_tex, Vector2(TAIL_X, TAIL_Y), Vector2.DOWN),
+	]
+	_rcs[TURN_LEFT] = [
+		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
+		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+	]
+
 	_label = Label.new()
 	_label.text = "P%d" % (_net.player_index + 1)
 	_label.position = Vector2(-40, -48)
@@ -238,3 +286,21 @@ func _build_visuals() -> void:
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_color_override("font_color", Color(SpaceUi.STAR_WHITE, 0.8))
 	add_child(_label)
+
+
+## A puff whose nozzle sits at `at` and whose exhaust points along `exhaust`
+## (body frame). Kenney's fire14 is wide at the top and narrows downwards;
+## flipped, it starts narrow at the nozzle and spreads out along +y.
+func _add_rcs(texture: Texture2D, at: Vector2, exhaust: Vector2) -> Sprite2D:
+	var puff := Sprite2D.new()
+	puff.name = "Rcs%d" % _body.get_child_count()
+	puff.texture = texture
+	puff.flip_v = true
+	puff.offset = Vector2(0, texture.get_height() * 0.5)
+	puff.position = at
+	puff.rotation = exhaust.angle() - PI / 2.0
+	puff.scale = Vector2.ONE * RCS_SCALE
+	puff.z_index = -1   # under the hull
+	puff.visible = false
+	_body.add_child(puff)
+	return puff
