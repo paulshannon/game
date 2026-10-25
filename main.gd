@@ -159,6 +159,7 @@ func _process(delta: float) -> void:
 ## "Attempt to disconnect a nonexistent connection" error.
 func _shutdown_game() -> void:
 	if _game != null:
+		_game.free_spawned()
 		remove_child(_game)
 		_game.queue_free()
 		_game = null

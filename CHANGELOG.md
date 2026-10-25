@@ -13,6 +13,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
 
 ### Fixed
+- The exported (release) space server no longer logs "Attempt to disconnect a nonexistent connection" for each asteroid, shot and pickup still alive when it quits, which failed CI's exported-server smoke test. Spawned nodes are now freed before their spawner.
 - `SnapshotClock`'s latency window is 2 s of server time instead of 40 packets, so several players can share one clock.
 - A client that stalls while the first snapshots arrive (loading art on the first spawn) no longer draws everything seconds late for a long time: `SnapshotClock` jumps when it is far behind instead of slewing.
 - `release.yml` adopts a GitHub Release that already exists for the tag (e.g. one created on GitHub's "Draft a new release" page): it attaches the verified files and replaces the notes instead of failing, so re-running the job is safe. The v0.1.1 run failed this way (#11).

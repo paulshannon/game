@@ -81,6 +81,10 @@ func _build_client_world() -> void:
 	add_child(board)
 
 
+func _spawn_roots() -> Array[Node]:
+	return [players_root, entities_root]
+
+
 func make_menu() -> GameMenu:
 	return SpaceMenu.new()
 
