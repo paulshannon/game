@@ -8,7 +8,7 @@ const VIEW := Vector2(1280, 720)
 
 func _controls(jump: bool = true) -> TouchControls:
 	InputSetup.ensure_actions()
-	return TouchControls.new(jump)
+	return TouchControls.new(InputSetup.JUMP if jump else &"")
 
 
 func _touch(index: int, pos: Vector2, pressed: bool) -> InputEventScreenTouch:
@@ -88,10 +88,10 @@ func test_move_and_jump_with_two_fingers() -> void:
 	var c := _controls(true)
 	c.handle_event(_touch(0, Vector2(200, 500), true), VIEW)
 	c.handle_event(_drag(0, Vector2(300, 500)), VIEW)
-	assert_true(c.handle_event(_touch(1, c.jump_center(VIEW), true), VIEW))
+	assert_true(c.handle_event(_touch(1, c.button_center(VIEW), true), VIEW))
 	assert_true(Input.is_action_pressed(InputSetup.JUMP))
 	assert_true(_move().x > 0.5, "stick still held while jumping")
-	c.handle_event(_touch(1, c.jump_center(VIEW), false), VIEW)
+	c.handle_event(_touch(1, c.button_center(VIEW), false), VIEW)
 	assert_false(Input.is_action_pressed(InputSetup.JUMP))
 	assert_true(_move().x > 0.5, "releasing jump leaves the stick alone")
 	_done(c)
@@ -99,7 +99,7 @@ func test_move_and_jump_with_two_fingers() -> void:
 
 func test_no_jump_button_in_games_without_jump() -> void:
 	var c := _controls(false)
-	assert_false(c.handle_event(_touch(1, c.jump_center(VIEW), true), VIEW))
+	assert_false(c.handle_event(_touch(1, c.button_center(VIEW), true), VIEW))
 	assert_false(Input.is_action_pressed(InputSetup.JUMP))
 	_done(c)
 
@@ -127,8 +127,19 @@ func test_release_all_lets_go_of_everything() -> void:
 	var c := _controls()
 	c.handle_event(_touch(0, Vector2(200, 500), true), VIEW)
 	c.handle_event(_drag(0, Vector2(300, 500)), VIEW)
-	c.handle_event(_touch(1, c.jump_center(VIEW), true), VIEW)
+	c.handle_event(_touch(1, c.button_center(VIEW), true), VIEW)
 	c.release_all()
 	assert_eq(_move(), Vector2.ZERO)
 	assert_false(Input.is_action_pressed(InputSetup.JUMP))
 	c.free()
+
+
+func test_fire_button_presses_fire() -> void:
+	InputSetup.ensure_actions()
+	var c := TouchControls.new(InputSetup.FIRE)
+	assert_true(c.handle_event(_touch(1, c.button_center(VIEW), true), VIEW))
+	assert_true(Input.is_action_pressed(InputSetup.FIRE))
+	assert_false(Input.is_action_pressed(InputSetup.JUMP), "only the game's own action")
+	c.handle_event(_touch(1, c.button_center(VIEW), false), VIEW)
+	assert_false(Input.is_action_pressed(InputSetup.FIRE))
+	_done(c)

@@ -6,7 +6,14 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
+### Added
+- **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
+- `fire` input action (Space) and a touch **Fire** button. Games choose their action with `GameBase.action_button()` (which replaces `uses_jump()`); only that button is sent, and a key still held from the menu's Play button is ignored until released.
+- `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
+
 ### Fixed
+- `SnapshotClock`'s latency window is 2 s of server time instead of 40 packets, so several players can share one clock.
+- A client that stalls while the first snapshots arrive (loading art on the first spawn) no longer draws everything seconds late for a long time: `SnapshotClock` jumps when it is far behind instead of slewing.
 - `release.yml` adopts a GitHub Release that already exists for the tag (e.g. one created on GitHub's "Draft a new release" page): it attaches the verified files and replaces the notes instead of failing, so re-running the job is safe. The v0.1.1 run failed this way (#11).
 
 ## [0.1.1] - 2026-10-23

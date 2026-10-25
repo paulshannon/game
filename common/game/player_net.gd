@@ -43,7 +43,14 @@ func _init(angular_rotation: bool) -> void:
 
 ## Call from the player's setup(), before it enters the tree. Reads the spawn
 ## data and adds the InputRelay and the synchronizer under `player`.
-func setup(player: Node, data: Dictionary, is_server_side: bool, use_bot: bool) -> void:
+## `extra_synced`: the player's own props sent with every snapshot after
+## SYNCED, so their setters can stamp them with net_time like the position
+## (state whose changes must line up with what's drawn).
+## `on_change_props`: rarely changing props (score, health), sent only when
+## they change (Replication), unstamped.
+func setup(player: Node, data: Dictionary, is_server_side: bool, use_bot: bool,
+		extra_synced: PackedStringArray = PackedStringArray(),
+		on_change_props: PackedStringArray = PackedStringArray()) -> void:
 	server_side = is_server_side
 	peer_id = int(data["id"])
 	player_index = int(data["index"])
@@ -54,7 +61,14 @@ func setup(player: Node, data: Dictionary, is_server_side: bool, use_bot: bool) 
 	relay.owner_peer = peer_id
 	relay.use_bot = use_bot
 	player.add_child(relay)
-	player.add_child(Replication.make_synchronizer(PackedStringArray(SYNCED)))
+	player.add_child(Replication.make_synchronizer(PackedStringArray(SYNCED) + extra_synced, on_change_props))
+
+
+## Client: map this player's snapshots with a clock shared with other things
+## drawn on the server timeline (other players, projectiles), so they all
+## render at the same server time. Call before the first snapshot arrives.
+func use_clock(clock: SnapshotClock) -> void:
+	_clock = clock
 
 
 func on_time(t: float) -> void:

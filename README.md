@@ -32,7 +32,7 @@ tools/run_server.sh 2d               # terminal 1
 tools/serve_web.sh                   # terminal 2 → open http://localhost:8000/?game=2d
 ```
 
-Open the page in two tabs to see two players. Controls: WASD / arrows, Space to jump (3D). On a touch screen (iPad, phone): drag on the left half to move (floating stick), tap **Jump** bottom-right (3D).
+Open the page in two tabs to see two players. Controls: WASD / arrows, Space to jump (3D). On a touch screen (iPad, phone): drag on the left half to move (floating stick), tap **Jump** bottom-right (3D). The space game (`?game=space`) is an asteroid shooter: turn with left/right, thrust with up, fire with Space or the touch **Fire** button (see [games/space/README.md](games/space/README.md)).
 
 Use the editor normally too: `.tools/godot -e --path .` (or your own Godot 4.7.1). To run server + clients from the editor, set *Debug → Customize Run Instances* with `-- --server` for one instance and `-- --client` for the others.
 

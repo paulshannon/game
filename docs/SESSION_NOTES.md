@@ -70,6 +70,10 @@ In discovery order. The final fixes are documented as rules in `CLAUDE.md` §7 (
    - 2D had grey margins; the clear colour is now set.
    - Huge peer IDs in labels were replaced with join indices.
 10. **`install_godot.sh` lacked the exec bit** in the first commit. Caught by `git ls-files -s` and amended.
+11. **Space gameplay (#16): shots vanished before they were drawn.** Shots and asteroids are drawn from their spawn data at the shared clock's render time. In smoke runs a client's clock was ~2.2 s behind, so the server despawned a shot (0.9 s life) before the client's render time reached its birth.
+    - Cause: the client stalls loading art when the first players spawn. The stalled snapshots seed `SnapshotClock`'s offset 2 s too large, and slewing back at 0.1 s/s takes ~20 s. The box games hid this because everything they draw lags together.
+    - Fix: `SnapshotClock` jumps when it is more than `SNAP_BEHIND` (0.5 s) behind the best latency seen (a stall only adds larger offsets, so it can't trigger the jump), and the space art is preloaded when the world is built.
+12. **Smoke clients leaked `AudioStreamPlaybackOggVorbis` at exit** ("ObjectDB instances leaked", "resources still in use"), so the smoke test failed. `--verbose` showed only the explosion sound leaking: its playbacks were cut off by `max_polyphony`, and short sounds that finish on their own were fine. Calling `stop()` on exit didn't help, because the dummy audio driver never releases a stopped playback. Fix: no sounds when headless.
 
 Also checked: untyped **loop variables** are *not* rejected by the compiler, so `CLAUDE.md` says to type them for checking, not that the build enforces it.
 

@@ -58,8 +58,8 @@ func _process(delta: float) -> void:
 	_camera.look_at(_camera.position - CAMERA_OFFSET)
 
 
-func uses_jump() -> bool:
-	return true
+func action_button() -> StringName:
+	return InputSetup.JUMP
 
 
 func _spawn_position(index: int) -> Variant:
