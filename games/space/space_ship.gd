@@ -119,6 +119,11 @@ func player_index() -> int:
 	return _net.player_index
 
 
+## Flown by the server (ServerBots).
+func is_bot() -> bool:
+	return _net.is_bot
+
+
 ## Which of SpaceSim.HULLS this ship is (from the spawn data).
 func hull() -> int:
 	return state.hull

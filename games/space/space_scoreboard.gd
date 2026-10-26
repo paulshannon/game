@@ -52,7 +52,7 @@ func _process(_delta: float) -> void:
 		c.queue_free()
 	for ship: SpaceShip in rows:
 		var l := Label.new()
-		var you: String = "  (you)" if ship.peer_id() == me else ""
+		var you: String = "  (you)" if ship.peer_id() == me else ("  bot" if ship.is_bot() else "")
 		l.text = "P%d%s   %d" % [ship.player_index() + 1, you, ship.score]
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		l.add_theme_font_override("font", SpaceUi.font())

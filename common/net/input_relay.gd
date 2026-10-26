@@ -14,6 +14,9 @@ var use_bot: bool = false
 ## Called once, only on the client that owns this player; otherwise a
 ## wandering BotInput is used.
 var make_bot: Callable
+## Server: the pilot of a bot the server flies itself (ServerBots). Its input
+## is accepted directly, as if it had arrived from a client.
+var server_bot: BotInput
 ## The game's one button action (GameBase.action_button(), set by the
 ## spawner). Only it is sent: in a game without fire, Space (also bound to
 ## jump) must not send fire, and the other way round.
@@ -48,6 +51,8 @@ func is_local_owner() -> bool:
 
 func _physics_process(delta: float) -> void:
 	if Net.is_online() and multiplayer.is_server():
+		if server_bot != null:
+			_fly_server_bot(delta)
 		age_input(delta)
 		return
 	if not is_local_owner():
@@ -69,6 +74,18 @@ func _physics_process(delta: float) -> void:
 		pressed = gate_button(not action.is_empty() and Input.is_action_pressed(action))
 	_seq += 1
 	submit_input.rpc_id(1, m, pressed and action == InputSetup.JUMP, pressed and action == InputSetup.FIRE, _seq)
+
+
+## Server: the bot's input at INPUT_HZ, like a client would send it.
+func _fly_server_bot(delta: float) -> void:
+	_send_accum += delta
+	var interval: float = 1.0 / Protocol.INPUT_HZ
+	if _send_accum < interval:
+		return
+	_send_accum = fmod(_send_accum, interval)
+	server_bot.update(interval)
+	accept_input(server_bot.move, action == InputSetup.JUMP and server_bot.jump,
+			action == InputSetup.FIRE and server_bot.fire)
 
 
 ## Client: the button as sent. Held since before this player spawned counts

@@ -27,6 +27,8 @@ var peer_id: int = 0
 ## peer ids are huge random ints.
 var player_index: int = 0
 var color: Color = Color.WHITE
+## Flown by the server (ServerBots), not by a person.
+var is_bot: bool = false
 var server_side: bool = false
 var relay: InputRelay
 
@@ -54,6 +56,7 @@ func setup(player: Node, data: Dictionary, is_server_side: bool, use_bot: bool,
 	server_side = is_server_side
 	peer_id = int(data["id"])
 	player_index = int(data["index"])
+	is_bot = bool(data.get("bot", false))
 	color = Color.from_hsv(float(data["hue"]), 0.65, 0.95)
 
 	relay = InputRelay.new()
@@ -111,6 +114,8 @@ func rotation_at(t: float) -> Variant:
 func label_text(player: Node) -> String:
 	if Net.is_online() and player.multiplayer.get_unique_id() == peer_id:
 		return "You (P%d)" % (player_index + 1)
+	if is_bot:
+		return "Bot (P%d)" % (player_index + 1)
 	return "P%d" % (player_index + 1)
 
 

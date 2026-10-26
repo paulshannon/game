@@ -6,6 +6,10 @@
 
 **Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, or **auto** (the default): your seat's colour, so players who don't pick still differ. Anyone may pick a colour someone else has; the labels still tell you apart. Your colour also tints your shots and your score.
 
+**Bots** (server-flown): the menu's **Bots** row (0–7) asks the server to fly that many bot ships. Only the first person into an empty match decides (the pick goes with the join request; later players' picks are ignored), and going back to select while alone lets you change it. Bots are ordinary ships spawned by the server (`ServerBots`, fake negative peer ids, labelled "Bot (P2)" and "bot" on the scoreboard), flown by `SpaceBot` reading the server's own state, with a random ship and colour. They take free seats only, one gives up its seat when someone joins a full match, and they all leave with the last person.
+
+![Three server bots flying with you](../../docs/screenshots/space-server-bots.png)
+
 **Changing ship mid-game:** Esc (Start on a controller, the **Menu** button top-left on touch; remappable as "Ship select") despawns your ship and brings the menu back. Pick again and Play: you rejoin on the same connection, in the same seat, with your score. It's the generic `InputSetup.MENU` action: `main.gd` calls `GameBase.leave_to_select()` (the server checks the sender, removes that player and keeps the seat waiting) and Play sends the join request again. Games without a menu get their join button back instead.
 
 ![Picking a green Hornet on the menu](../../docs/screenshots/space-ship-picker.png)
@@ -55,9 +59,9 @@ All are CC0; see `CREDITS.md`.
 
 ## Smoke test
 
-Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. On top of the usual "everyone moved":
-- the **server** checks that every player fired and that rocks were destroyed;
-- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. Each smoke client also asks for `SpaceArena.SMOKE_BOTS` (2) server bots. On top of the usual "everyone moved":
+- the **server** checks that every person fired, that rocks were destroyed, and that the server bots flew and fired;
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
@@ -69,9 +73,9 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_arena.gd` | both | world, spawners, shared clock, camera that follows your ship, `smoke_report()` |
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
 | `space_scoreboard.gd` | client | scores, top-right |
-| `space_bot.gd` | client (bots) | aiming smoke-test pilot |
+| `space_bot.gd` | client (smoke bots), server (server bots) | aiming pilot |
 | `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
-| `space_ship_picker.gd` | client | the menu's ship and colour picker; remembers the pick |
+| `space_ship_picker.gd` | client | the menu's ship, colour and bots picker; remembers the picks |
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |
 | `starfield.gd` | client | procedural twinkling star field (menu background; parallax arena backdrop) |
 

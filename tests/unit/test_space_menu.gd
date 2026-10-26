@@ -100,7 +100,10 @@ const PICKS: String = "user://test_space_picks.cfg"
 func test_picker_cycles_ship_and_colour_and_remembers() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PICKS))
 	var p := SpaceShipPicker.new(PICKS)
-	assert_eq(p.choice(), {"hull": SpaceSim.FALCON, "color": SpaceShip.COLOR_AUTO}, "defaults")
+	assert_eq(p.choice(), {"hull": SpaceSim.FALCON, "color": SpaceShip.COLOR_AUTO, "bots": 0}, "defaults")
+	p.pick_bots(-1)
+	assert_eq(p.bots, ServerBots.MAX_BOTS, "bots wrap round too")
+	assert_eq((p.get_node("Bots/Cycle") as Button).text, "Bots: %d" % ServerBots.MAX_BOTS)
 	p.pick_hull(-1)
 	assert_eq(p.hull, SpaceSim.HULLS.size() - 1, "wraps round backwards")
 	p.pick_color(1)
