@@ -6,6 +6,16 @@
 
 **Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, and **colours are teams** (below); **auto** (the default) puts you on the team with the fewest ships. Your colour also tints your shots.
 
+**The star and energy:** a star sits at the centre of the map (`SpaceStar`, drawn in code by `SpaceStarView`).
+- **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`, capped at 1400 px/s² near the surface. At the spawn ring (900 px) it's a nudge (~90 px/s²); inside ~360 px it beats a Falcon's full thrust, so don't dive too deep. Shots fly straight (they live under a second).
+- **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Nobody (re)spawns closer than 900 px (`SpaceStar.safe_spot`), and new rocks don't come in near it.
+- **Energy** (0–100, bar bottom-centre): recharges at 40/s within 400 px of the star, falling off as 1/distance beyond (20/s at 800, 4/s at 4000), never below 1.5/s. Main engine 10/s, brake 6/s and strafe 8/s at full push; 7 per shot. When the pool can't pay, the engines get only the power it can (none when empty) and the guns don't fire; turning is free. Respawning refills it. So the fight is a loop: dive in to recharge, climb out to fight.
+- **Rocks fall** without being replicated: each one's path is a `SpaceStar.Fall`, stepped in fixed 1/30 s steps from its spawn data (origin, velocity, server time), the same way on every peer, so they all agree. A late joiner steps each rock through its whole life once when it arrives (cheap: rocks are dropped once nobody's near them). A rock's pieces split off its current, gravity-bent velocity.
+- **Bots** head back to recharge below 30 energy, keep 5 spare when shooting, and fly straight out if they get within 500 px of the star.
+- The radar shows the star as an orange sun (on the rim when it's out of range): the way home to recharge.
+
+![The star, falling rocks, the radar pointing home and the energy bar](../../docs/screenshots/space-star-energy.png)
+
 **Teams, PvP and radar** (#35):
 - **Teams:** your colour is your team. Auto joins the smallest team (on a tie, your seat's colour), and bots always join on auto, so teams stay even. Picking a colour joins that team however big it is.
 - **PvP:** shots hit ships of other teams, never your own team (no friendly fire). A shield takes the hit; spawn protection (blinking) lets shots fly through. Shooting a ship down scores **200** (`SpaceSim.SHIP_KILL_POINTS`). The server decides every hit (`SpaceDirector`, swept like rock hits); a shot's team travels in its spawn data, so it counts even if its shooter has left.
@@ -73,8 +83,8 @@ All are CC0; see `CREDITS.md`.
 ## Smoke test
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. Each smoke client also asks for `SpaceArena.SMOKE_BOTS` (2) server bots. On top of the usual "everyone moved":
-- the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team), and that every person's ship strafed;
-- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, drew its own ship's RCS thrusters and strafing, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+- the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team), that every person's ship strafed, and that ships spent and recharged energy;
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, showed its energy below full (replicated), drew its own ship's RCS thrusters and strafing, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
@@ -89,6 +99,9 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_radar.gd` | client | radar around your ship, top-centre |
 | `space_bot.gd` | client (smoke bots), server (server bots) | aiming pilot |
 | `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
+| `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, a rock's falling path (`Fall`) |
+| `space_star_view.gd` | client | draws the star |
+| `space_energy_bar.gd` | client | your energy, bottom-centre |
 | `space_hull_art.gd` | client | each hull's sprite and where its flames and RCS nozzles are |
 | `space_ship_picker.gd` | client | the menu's ship, colour and bots picker; remembers the picks |
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |

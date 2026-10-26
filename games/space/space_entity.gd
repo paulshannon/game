@@ -43,6 +43,8 @@ var variant: int = 0
 var owner_peer: int = 0
 
 var _data: Dictionary = {}
+## Asteroids: their path under the star's gravity (same steps on every peer).
+var _fall: SpaceStar.Fall = null
 var _clock: SnapshotClock = null
 var _fx: SpaceFx = null
 var _ghost_until: float = INF
@@ -66,6 +68,8 @@ func setup(data: Dictionary) -> void:
 	born = float(data["t"])
 	variant = int(data["s"])
 	owner_peer = int(data["o"])
+	if kind == Kind.ASTEROID:
+		_fall = SpaceStar.Fall.new(origin, velocity, born)
 	name = "E%d" % id
 	position = position_at(born)
 
@@ -93,16 +97,22 @@ func radius() -> float:
 	return SpaceSim.PICKUP_RADIUS
 
 
+## Its velocity at a server time (asteroids: bent by gravity since the spawn).
+func velocity_at(server_time: float) -> Vector2:
+	return _fall.velocity_at(server_time) if _fall != null else velocity
+
+
 func age(server_time: float) -> float:
 	return server_time - born
 
 
 ## Where it is at a server time (held at its origin before it was born).
+## Asteroids fall towards the star; shots fly straight; pickups stay put.
 func position_at(server_time: float) -> Vector2:
 	var a: float = maxf(age(server_time), 0.0)
 	match kind:
 		Kind.ASTEROID:
-			return SpaceSim.asteroid_position(origin, velocity, a)
+			return _fall.position_at(server_time)
 		Kind.SHOT:
 			return SpaceSim.shot_position(origin, velocity, a)
 	return origin

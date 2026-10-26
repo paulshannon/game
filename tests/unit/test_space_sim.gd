@@ -4,9 +4,14 @@ extends TestCase
 const DT: float = 1.0 / 60.0
 
 
+## Far from the star: its pull there is a few thousandths of a px/s².
+const FAR := Vector2(0, 200000)
+
+
 func _ship() -> SpaceSim.Ship:
 	var s := SpaceSim.Ship.new()
 	s.rotation = 0.0  # facing +x
+	s.position = FAR
 	return s
 
 
@@ -40,7 +45,6 @@ func test_momentum_carries_on_after_thrust() -> void:
 
 func test_speed_is_capped() -> void:
 	var s := _ship()
-	s.position = Vector2(-500, 0)
 	_run(s, Vector2.UP, 3.0)
 	assert_true(s.velocity.length() <= SpaceSim.MAX_SPEED + 0.001)
 
@@ -49,7 +53,7 @@ func test_turning_rotates_without_moving() -> void:
 	var s := _ship()
 	_run(s, Vector2.RIGHT, 0.25)
 	assert_near(s.rotation, SpaceSim.TURN_SPEED * 0.25, 0.01)
-	assert_eq(s.velocity, Vector2.ZERO)
+	assert_near(s.velocity.length(), 0.0, 0.01, "only the star's faint pull")
 
 
 func test_space_has_no_edge() -> void:
@@ -88,21 +92,13 @@ func test_rapid_fire_shoots_faster_then_wears_off() -> void:
 func test_shot_starts_at_nose_and_keeps_ship_momentum() -> void:
 	var s := _ship()
 	s.velocity = Vector2(0, 100)
-	assert_eq(SpaceSim.shot_origin(s), Vector2(SpaceSim.MUZZLE, 0))
+	assert_eq(SpaceSim.shot_origin(s), FAR + Vector2(SpaceSim.MUZZLE, 0))
 	assert_eq(SpaceSim.shot_velocity(s), Vector2(SpaceSim.SHOT_SPEED, 100))
 
 
 func test_shot_expires_by_age() -> void:
 	assert_false(SpaceSim.shot_expired(0.5))
 	assert_true(SpaceSim.shot_expired(SpaceSim.SHOT_LIFE))
-
-
-func test_asteroid_drifts_in_a_straight_line() -> void:
-	var p0 := Vector2(-20, 30)
-	var v := Vector2(100, -40)
-	assert_eq(SpaceSim.asteroid_position(p0, v, 0.0), p0)
-	assert_eq(SpaceSim.asteroid_position(p0, v, 1.0), Vector2(80, -10))
-	assert_near(SpaceSim.asteroid_position(p0, v, 600.0).x, 59980.0, 0.01, "no edge to bounce off")
 
 
 func test_split_gives_two_faster_smaller_pieces() -> void:

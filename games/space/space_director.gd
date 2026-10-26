@@ -4,7 +4,7 @@ extends Node
 ## asteroid field topped up around every ship and removes rocks left far
 ## behind (SpaceField), turns ship shots into SHOT entities, and resolves every
 ## collision (shot/asteroid, shot/ship of another team, ship/asteroid,
-## ship/pickup) with SpaceSim rules.
+## ship/pickup, anything/star) with SpaceSim and SpaceStar rules.
 ## Clients never decide a hit or a score; they only see the results as
 ## spawns, despawns and replicated ship state.
 ##
@@ -13,9 +13,12 @@ extends Node
 
 const ASTEROID_INTERVAL: float = 0.5  # at most one new rock this often
 const ASTEROID_SPEED := Vector2(45.0, 100.0)
-## The first rocks, around the origin before anyone joins: close enough to
-## shoot at once (players start 160 px out).
-const START_DISTANCE := Vector2(350.0, SpaceField.ENTRY_DISTANCE)
+## The first rocks, around the star before anyone joins: across the ring
+## where players start (SpaceStar.SAFE_RADIUS), so there's something to shoot
+## at once.
+const START_DISTANCE := Vector2(500.0, 1400.0)
+## New rocks don't come in this close to the star's edge.
+const STAR_CLEARANCE: float = 300.0
 const PICKUP_CHANCE: float = 0.15     # per destroyed asteroid
 
 var arena: SpaceArena
@@ -27,6 +30,8 @@ var asteroids_dropped: int = 0        # left far behind (SpaceField.is_stray)
 var ships_destroyed: int = 0
 var pvp_hits: int = 0                 # shots that hit a ship (shield or not)
 var pvp_kills: int = 0
+var star_deaths: int = 0              # ships that flew into the star
+var star_burns: int = 0               # rocks and shots it swallowed
 var pickups_taken: int = 0
 ## Peer id -> score, latched as it changes so it outlives the player leaving.
 var scores: Dictionary = {}
@@ -106,12 +111,21 @@ func _physics_process(delta: float) -> void:
 					_shoot_ship(ship, _ship_of(shot.owner_peer))
 					shot.queue_free()
 					break
+		if not shot.is_queued_for_deletion() and SpaceStar.touches(to, SpaceSim.SHOT_RADIUS):
+			star_burns += 1
+			shot.queue_free()
 		if not shot.is_queued_for_deletion() and SpaceSim.shot_expired(age):
 			shot.queue_free()
 
 	for ship: SpaceShip in ships:
 		var s: SpaceSim.Ship = ship.state
 		if not s.alive:
+			continue
+		if SpaceStar.touches(s.position, SpaceSim.SHIP_RADIUS):
+			SpaceSim.destroy(s)   # no shield or spawn protection saves you
+			ships_destroyed += 1
+			star_deaths += 1
+			print("[server] P%d flew into the star" % [ship.player_index() + 1])
 			continue
 		for rock: SpaceEntity in rocks:
 			if rock.is_queued_for_deletion() or not SpaceSim.can_be_hit(s):
@@ -156,7 +170,7 @@ func _destroy_asteroid(rock: SpaceEntity, now: float, scorer: SpaceShip) -> void
 	if scorer != null:
 		scorer.state.score += SpaceSim.asteroid_points(rock.variant)
 		scores[scorer.peer_id()] = scorer.state.score
-	for v: Vector2 in SpaceSim.split_velocities(rock.variant, rock.velocity):
+	for v: Vector2 in SpaceSim.split_velocities(rock.variant, rock.velocity_at(now)):
 		spawn_asteroid(rock.variant - 1, at, v, now)
 	if _rng.randf() < PICKUP_CHANCE:
 		_spawn(SpaceEntity.Kind.PICKUP, at, Vector2.ZERO, now, _rng.randi() % SpaceSim.PICKUP_KINDS)
@@ -200,6 +214,9 @@ func _tend_field(rocks: Array[SpaceEntity], now: float, delta: float) -> void:
 		if SpaceField.is_stray(at, anchors):
 			asteroids_dropped += 1
 			rock.queue_free()
+		elif SpaceStar.touches(at, rock.radius()):
+			star_burns += 1   # clients that can see it watch it explode
+			rock.queue_free()
 		else:
 			positions.append(at)
 	_spawn_timer -= delta
@@ -212,7 +229,7 @@ func _tend_field(rocks: Array[SpaceEntity], now: float, delta: float) -> void:
 	var anchor: Vector2 = anchors[needy]
 	var at: Vector2 = SpaceField.entry_point(anchor, _rng.randf() * TAU)
 	for attempt: int in 12:
-		if SpaceField.is_clear(at, anchors):
+		if SpaceField.is_clear(at, anchors) and not SpaceStar.touches(at, STAR_CLEARANCE):
 			break
 		at = SpaceField.entry_point(anchor, _rng.randf() * TAU)
 	var speed: float = _rng.randf_range(ASTEROID_SPEED.x, ASTEROID_SPEED.y)

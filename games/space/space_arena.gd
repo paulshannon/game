@@ -10,7 +10,8 @@ extends GameBase
 ##   Game/Entities        <- asteroids, shots, pickups (SpaceEntity), by id
 ##   Game/EntitySpawner   <- MultiplayerSpawner, spawn_path -> Entities
 ##   Game/Director        <- server only (SpaceDirector)
-##   Game/Fx, Radar, Scoreboard  <- client only (SpaceFx, SpaceRadar, SpaceScoreboard)
+##   Game/Star, Fx, EnergyBar, Radar, Scoreboard  <- client only (SpaceStarView,
+##                        SpaceFx, SpaceEnergyBar, SpaceRadar, SpaceScoreboard)
 
 ## How the touch controls work, shown on the menu's Controls page on touch
 ## screens (they can't be remapped).
@@ -26,6 +27,7 @@ var director: SpaceDirector
 var clock := SnapshotClock.new()
 var fx: SpaceFx
 var radar: SpaceRadar
+var energy_bar: SpaceEnergyBar
 var camera: Camera2D
 var _stars: Starfield
 ## Server: scores of players back at ship select, restored when they respawn.
@@ -38,8 +40,11 @@ var _own_rcs_frames: int = 0
 var _own_pick: Dictionary = {}
 var _bot_moved: bool = false
 var _own_strafe_frames: int = 0
-## Server (smoke test): peers whose ship has strafed.
+## Server (smoke test): peers whose ship has strafed; energy every ship spent
+## and recharged.
 var strafers: Dictionary = {}
+var energy_used: float = 0.0
+var energy_gained: float = 0.0
 # Smoke test (server): hull and colour each player spawned with, by peer id.
 var _picks: Dictionary = {}
 
@@ -78,6 +83,10 @@ func _build_client_world() -> void:
 	backdrop.add_child(_stars)
 	add_child(backdrop)
 
+	var star := SpaceStarView.new()
+	star.name = "Star"
+	add_child(star)
+
 	camera = Camera2D.new()
 	camera.name = "Camera"
 	add_child(camera)
@@ -87,6 +96,11 @@ func _build_client_world() -> void:
 	fx.name = "Fx"
 	fx.clock = clock
 	add_child(fx)
+
+	energy_bar = SpaceEnergyBar.new()
+	energy_bar.name = "EnergyBar"
+	energy_bar.arena = self
+	add_child(energy_bar)
 
 	radar = SpaceRadar.new()
 	radar.name = "Radar"
@@ -145,10 +159,12 @@ func _sanitize_choice(choice: Dictionary, index: int) -> Dictionary:
 			"color": color}
 
 
-## Around the origin at the start; once people have flown off, a newcomer
-## joins them instead (round the first ship still in the match).
+## Next to the star's safe ring at the start; once people have flown off, a
+## newcomer joins them instead (round the first ship still in the match).
 func _spawn_position(index: int) -> Variant:
-	var around: Vector2 = Vector2.ZERO
+	# Nobody yet: together, just outside the ring where the star's pull is
+	# mild (SpaceShip moves anything closer out to it: SpaceStar.safe_spot).
+	var around: Vector2 = SpaceStar.CENTER + Vector2(SpaceStar.SAFE_RADIUS + 250.0, 0)
 	for p: Node in active_players():
 		var ship: SpaceShip = p as SpaceShip
 		if ship != null:
@@ -226,9 +242,9 @@ func _process(delta: float) -> void:
 ## On top of "everyone moved": the server saw every player shoot, rocks
 ## destroyed, the server bots the clients asked for fly and shoot, and a shot
 ## hit a ship of another team (PvP: bots join on auto, so each is on its own
-## team), and every person's ship strafed. Each client drew its own shots, drew an asteroid explode, drew its
+## team), every person's ship strafed, and ships spent and recharged energy. Each client drew its own shots, drew an asteroid explode, drew its
 ## own ship's RCS thrusters (bots turn constantly) and strafing, drew a server bot move,
-## showed another ship on its radar, received a score from the server, and got
+## showed another ship on its radar, showed its energy below full, received a score from the server, and got
 ## the hull and colour it asked for. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
 ## may spend 2 s of it dead), and the replication path is the same.
@@ -255,8 +271,12 @@ func smoke_report() -> Dictionary:
 		report["strafers"] = people_strafed
 		report["pvp_hits"] = director.pvp_hits
 		report["pvp_kills"] = director.pvp_kills
+		report["energy_used"] = roundi(energy_used)
+		report["energy_gained"] = roundi(energy_gained)
+		report["star_deaths"] = director.star_deaths
+		report["star_burns"] = director.star_burns
 		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0 \
-				and people_strafed >= config.expect_peers
+				and people_strafed >= config.expect_peers and energy_used > 0.0 and energy_gained > 0.0
 		report["asteroids_destroyed"] = director.asteroids_destroyed
 		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
@@ -272,10 +292,12 @@ func smoke_report() -> Dictionary:
 	report["pick"] = {"asked": join_choice, "got": _own_pick}
 	report["bot_moved"] = _bot_moved
 	report["radar_ships"] = radar.ships_shown
+	report["lowest_energy_shown"] = energy_bar.lowest_shown
 	report["own_strafe_frames"] = _own_strafe_frames
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
 			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved \
-			and radar.ships_shown > 0 and _own_strafe_frames > 0
+			and radar.ships_shown > 0 and _own_strafe_frames > 0 \
+			and energy_bar.lowest_shown < int(SpaceStar.ENERGY_MAX)
 	return report
 
 

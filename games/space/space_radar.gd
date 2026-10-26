@@ -3,7 +3,7 @@ extends CanvasLayer
 ## Client: a round radar, top-centre, around your own ship. Ships are dots in
 ## their team's colour (allies ringed, enemies solid); ships out of range sit
 ## on the rim, pointing the way to them in unbounded space. Rocks in range
-## are faint specks. Draws what this client draws (positions as rendered),
+## are faint specks; the star is an orange sun (on the rim when far off). Draws what this client draws (positions as rendered),
 ## and nothing while your ship isn't in the match.
 
 const RADIUS: float = 78.0             # on screen, px
@@ -56,6 +56,10 @@ func _draw_radar() -> void:
 		var r: Array = to_radar(e.position, own.position, center)
 		if bool(r[1]):
 			_canvas.draw_circle(r[0], 1.5, Color(0.75, 0.7, 0.65, 0.5))
+
+	# The star: a sun in range, or a marker on the rim pointing home.
+	var sun: Array = to_radar(SpaceStar.CENTER, own.position, center)
+	_canvas.draw_circle(sun[0], 6.0 if bool(sun[1]) else 3.0, SpaceStarView.GLOW)
 
 	var shown: int = 0
 	for p: Node in arena.active_players():

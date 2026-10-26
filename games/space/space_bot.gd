@@ -1,7 +1,8 @@
 class_name SpaceBot
 extends BotInput
-## Pilot for the space game's bots: turns toward the nearest enemy ship close
-## by (another team), or else the nearest asteroid it can see; thrusts when
+## Pilot for the space game's bots: keeps clear of the star and goes back
+## to it to recharge when low on energy; otherwise turns toward the nearest
+## enemy ship close by (another team), or else the nearest asteroid it can see; thrusts when
 ## far, brakes when close, and fires when lined up. So the bots really shoot
 ## rocks and each other and score over the network, proving the whole loop
 ## (input -> server rules -> spawns/despawns/score -> client).
@@ -12,6 +13,13 @@ extends BotInput
 
 ## Enemy ships closer than this are attacked before rocks.
 const ENGAGE_RANGE: float = 500.0
+## Closer to the star than this, it flies straight out (gravity there beats
+## most engines). Below LOW_ENERGY it heads back to recharge at
+## RECHARGE_ORBIT, and it keeps SHOT_RESERVE spare when shooting.
+const STAR_DANGER: float = 500.0
+const LOW_ENERGY: int = 30
+const RECHARGE_ORBIT: float = 650.0
+const SHOT_RESERVE: float = 5.0
 ## Away from a fight, a short sideways burst this often (alternating sides).
 const STRAFE_EVERY: float = 3.0
 const STRAFE_BURST: float = 0.4
@@ -33,9 +41,19 @@ func update(delta: float) -> void:
 		fire = false
 		strafe = 0.0
 		return
-	# An enemy ship close by comes first (PvP); otherwise the nearest rock.
-	var aim: Variant = _nearest_enemy()
 	_clock += delta
+	# Too close to the star: get out first. Low on energy: head back in to
+	# recharge. Otherwise an enemy ship close by (PvP), else the nearest rock.
+	var out: Vector2 = _ship.position - SpaceStar.CENTER
+	if out.length() < STAR_DANGER:
+		strafe = 0.0
+		_fly_to(_ship.position + out.normalized() * 600.0, false)
+		return
+	if _ship.energy < LOW_ENERGY:
+		strafe = 0.0
+		_fly_to(SpaceStar.CENTER + out.normalized() * RECHARGE_ORBIT, false)
+		return
+	var aim: Variant = _nearest_enemy()
 	strafe = _strafe(aim != null)
 	if aim == null:
 		var rock: SpaceEntity = _nearest_asteroid()
@@ -44,7 +62,13 @@ func update(delta: float) -> void:
 			fire = false
 			return
 		aim = _where(rock)
-	var to: Vector2 = (aim as Vector2) - _ship.position
+	_fly_to(aim as Vector2, _ship.energy >= SpaceStar.SHOT_COST + SHOT_RESERVE)
+
+
+## Turn towards `target`, close in or back off, and shoot when lined up (if
+## `shoot`).
+func _fly_to(target: Vector2, shoot: bool) -> void:
+	var to: Vector2 = target - _ship.position
 	var off: float = angle_difference(_ship.rendered_rotation(), to.angle())
 	var dist: float = to.length()
 	move.x = clampf(off * 3.0, -1.0, 1.0)
@@ -54,7 +78,7 @@ func update(delta: float) -> void:
 		move.y = 0.6           # brake / back off
 	else:
 		move.y = -0.2
-	fire = absf(off) < 0.3 and dist < 700.0
+	fire = shoot and absf(off) < 0.3 and dist < 700.0
 	jump = false
 
 
