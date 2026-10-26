@@ -14,9 +14,6 @@ const COLORS: Array[String] = ["blue", "green", "orange", "red"]
 ## A colour pick meaning "my seat's colour" (player index), the default.
 const COLOR_AUTO: int = -1
 const SHIP_SCALE: float = 0.5
-## The Gunship hull is Kenney's enemy ship 2, which comes in other colours:
-## orange players get the black one.
-const ENEMY_COLORS: Dictionary = {"blue": "Blue", "green": "Green", "orange": "Black", "red": "Red"}
 
 ## flags bits. Sent with every snapshot (an int), so each change is stamped
 ## with the server time it happened at and drawn at that moment.
@@ -31,13 +28,10 @@ const TURN_RIGHT: int = 128
 const STRAFE_LEFT: int = 256
 const STRAFE_RIGHT: int = 512
 
-## RCS thrusters, in the body's frame (+x is the nose, +y the right side).
+## RCS puffs. Where each hull's nozzles and flames are: SpaceHullArt.
 const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
 const RCS_SCALE: float = 0.41
-const NOSE_X: float = 14.0
-const TAIL_X: float = -14.0
-const NOSE_Y: float = 9.0
-const TAIL_Y: float = 20.0          # out at the wingtips, clear of the hull
+const FLAME_TEXTURE: String = PACK + "Effects/fire08.png"
 
 ## Server: total distance flown. Client: total distance drawn. Smoke tests read these.
 var traveled: float = 0.0
@@ -90,7 +84,7 @@ var _flag_timeline := StateTimeline.new(ALIVE)
 var _pickup_timeline := StateTimeline.new()
 
 var _body: Node2D
-var _flame: Sprite2D
+var _flames: Array[Sprite2D] = []
 var _shield: Sprite2D
 # Client: RCS puffs by flag bit (BRAKE, TURN_*, STRAFE_*).
 var _rcs: Dictionary = {}   # int -> Array[Sprite2D]
@@ -232,8 +226,10 @@ func _process(_delta: float) -> void:
 		_body.rotation = float(r)
 	visible = is_alive()
 	var shown: int = _shown_flags()
-	_flame.visible = shown & THRUST != 0
-	_flame.scale = Vector2(0.9, randf_range(0.8, 1.15))
+	for flame: Sprite2D in _flames:
+		flame.visible = shown & THRUST != 0
+		var size: float = float(flame.get_meta("size"))
+		flame.scale = Vector2(size, size * randf_range(0.9, 1.28))
 	var rcs: bool = false
 	for bit: int in _rcs:
 		var on: bool = shown & bit != 0
@@ -266,23 +262,11 @@ func _on_pickup(before: int, after: int, _at: float) -> void:
 
 ## Every texture a ship can use, to load them before play starts.
 static func texture_paths() -> Array[String]:
-	var out: Array[String] = [PACK + "Effects/fire08.png", PACK + "Effects/shield1.png", RCS_TEXTURE]
+	var out: Array[String] = [FLAME_TEXTURE, PACK + "Effects/shield1.png", RCS_TEXTURE]
 	for h: int in SpaceSim.HULLS.size():
 		for c: String in COLORS:
-			out.append(hull_texture(h, c))
+			out.append(SpaceHullArt.texture(h, c))
 	return out
-
-
-## The Kenney sprite for a hull in one of COLORS. Player ships point up, the
-## enemy ship (Gunship) down: see hull_points_down().
-static func hull_texture(hull_index: int, color: String) -> String:
-	if hull_index == SpaceSim.GUNSHIP:
-		return PACK + "Enemies/enemy%s2.png" % ENEMY_COLORS.get(color, "Blue")
-	return PACK + "playerShip%d_%s.png" % [SpaceSim.sanitize_hull(hull_index) + 1, color]
-
-
-static func hull_points_down(hull_index: int) -> bool:
-	return hull_index == SpaceSim.GUNSHIP
 
 
 func _build_visuals() -> void:
@@ -297,17 +281,21 @@ func _build_visuals() -> void:
 	art.scale = Vector2.ONE * SHIP_SCALE
 	_body.add_child(art)
 
-	_flame = Sprite2D.new()
-	_flame.name = "Flame"
-	_flame.texture = load(PACK + "Effects/fire08.png") as Texture2D
-	_flame.position = Vector2(0, 52)
-	_flame.visible = false
-	art.add_child(_flame)
+	var flame_tex: Texture2D = load(FLAME_TEXTURE) as Texture2D
+	for jet: Vector3 in SpaceHullArt.flames(state.hull):
+		var flame := Sprite2D.new()
+		flame.name = "Flame%d" % _flames.size()
+		flame.texture = flame_tex
+		flame.position = Vector2(jet.x, jet.y)
+		flame.set_meta("size", jet.z)
+		flame.visible = false
+		art.add_child(flame)
+		_flames.append(flame)
 
 	var ship := Sprite2D.new()
 	ship.name = "Ship"
-	ship.texture = load(hull_texture(state.hull, color_name())) as Texture2D
-	if hull_points_down(state.hull):
+	ship.texture = load(SpaceHullArt.texture(state.hull, color_name())) as Texture2D
+	if SpaceHullArt.points_down(state.hull):
 		ship.rotation = PI
 	art.add_child(ship)
 
@@ -322,27 +310,32 @@ func _build_visuals() -> void:
 	# a tail thruster on opposite sides, pushing the nose round: turning right
 	# (clockwise) blows the nose's left side and the tail's right side.
 	var rcs_tex: Texture2D = load(RCS_TEXTURE) as Texture2D
+	var h: int = state.hull
+	var nose_l: Vector2 = SpaceHullArt.nozzle(h, true, false)
+	var nose_r: Vector2 = SpaceHullArt.nozzle(h, true, true)
+	var tail_l: Vector2 = SpaceHullArt.nozzle(h, false, false)
+	var tail_r: Vector2 = SpaceHullArt.nozzle(h, false, true)
 	_rcs[BRAKE] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2(1, -0.35)),
-		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2(1, 0.35)),
+		_add_rcs(rcs_tex, nose_l, Vector2(1, -0.35)),
+		_add_rcs(rcs_tex, nose_r, Vector2(1, 0.35)),
 	]
 	_rcs[TURN_RIGHT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2.UP),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, TAIL_Y), Vector2.DOWN),
+		_add_rcs(rcs_tex, nose_l, Vector2.UP),
+		_add_rcs(rcs_tex, tail_r, Vector2.DOWN),
 	]
 	_rcs[TURN_LEFT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+		_add_rcs(rcs_tex, nose_r, Vector2.DOWN),
+		_add_rcs(rcs_tex, tail_l, Vector2.UP),
 	]
 	# Strafing fires a nose and a tail thruster on the same side, away from
 	# where it's going: strafing right blows out of the left side.
 	_rcs[STRAFE_RIGHT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2.UP),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+		_add_rcs(rcs_tex, nose_l, Vector2.UP),
+		_add_rcs(rcs_tex, tail_l, Vector2.UP),
 	]
 	_rcs[STRAFE_LEFT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, TAIL_Y), Vector2.DOWN),
+		_add_rcs(rcs_tex, nose_r, Vector2.DOWN),
+		_add_rcs(rcs_tex, tail_r, Vector2.DOWN),
 	]
 
 	_label = Label.new()
