@@ -24,6 +24,7 @@ const SHIP_RADIUS: float = 18.0
 const RESPAWN_TIME: float = 2.0
 const SPAWN_PROTECTION: float = 2.0   # invulnerable after (re)spawning
 const SHIELD_GRACE: float = 1.0       # invulnerable after the shield absorbs a hit
+const SHIP_KILL_POINTS: int = 200     # shooting down a ship of another team
 
 # --- shots --------------------------------------------------------------------
 
@@ -76,6 +77,8 @@ const PICKUP_LIFE: float = 12.0
 
 
 class Ship:
+	## Colours are teams (SpaceShip.COLORS index): shots only hit other teams.
+	var team: int = 0
 	## Which of HULLS (set_hull), and its handling.
 	var hull: int = FALCON
 	var thrust: float = THRUST
@@ -171,7 +174,25 @@ static func can_be_hit(s: Ship) -> bool:
 	return s.alive and s.protected_for <= 0.0
 
 
-## An asteroid hit the ship. The shield absorbs it; otherwise the ship is
+## PvP: whether a shot fired by `shooter_team` hits `target`. Other teams
+## only (no friendly fire, so never your own ship), and not while the target
+## is protected: the shot flies on through.
+static func shot_can_hit(shooter_team: int, target: Ship) -> bool:
+	return shooter_team != target.team and can_be_hit(target)
+
+
+## The team with the fewest ships, of `teams` (ships per team); ties go to
+## the first one from `prefer` on, so equal teams fill in turn.
+static func smallest_team(teams: Array[int], prefer: int) -> int:
+	var best: int = posmod(prefer, teams.size())
+	for i: int in teams.size():
+		var t: int = posmod(prefer + i, teams.size())
+		if teams[t] < teams[best]:
+			best = t
+	return best
+
+
+## An asteroid or a shot hit the ship. The shield absorbs it; otherwise the ship is
 ## destroyed. It stays where it was hit (hidden: clients draw the explosion at
 ## its position) until respawn() moves it. Moving it now would have clients
 ## interpolate the ship across the field before it explodes.

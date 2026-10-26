@@ -10,7 +10,7 @@ extends GameBase
 ##   Game/Entities        <- asteroids, shots, pickups (SpaceEntity), by id
 ##   Game/EntitySpawner   <- MultiplayerSpawner, spawn_path -> Entities
 ##   Game/Director        <- server only (SpaceDirector)
-##   Game/Fx, Scoreboard  <- client only (SpaceFx, SpaceScoreboard)
+##   Game/Fx, Radar, Scoreboard  <- client only (SpaceFx, SpaceRadar, SpaceScoreboard)
 
 ## How the touch controls work, shown on the menu's Controls page on touch
 ## screens (they can't be remapped).
@@ -25,6 +25,7 @@ var director: SpaceDirector
 ## the same moment (a shot leaves the nose of the ship as drawn).
 var clock := SnapshotClock.new()
 var fx: SpaceFx
+var radar: SpaceRadar
 var camera: Camera2D
 var _stars: Starfield
 ## Server: scores of players back at ship select, restored when they respawn.
@@ -84,6 +85,11 @@ func _build_client_world() -> void:
 	fx.clock = clock
 	add_child(fx)
 
+	radar = SpaceRadar.new()
+	radar.name = "Radar"
+	radar.arena = self
+	add_child(radar)
+
 	var board := SpaceScoreboard.new()
 	board.name = "Scoreboard"
 	board.players_root = players_root
@@ -110,26 +116,26 @@ func control_names() -> Dictionary:
 	}
 
 
-## Bots pick a random hull and colour (or auto), so smoke runs cover them
-## all over time.
+## Bots (smoke-test clients and server bots) pick a random hull and an auto
+## team, so teams stay even and a smoke run always has enemies to fight.
 ## Smoke-test clients also ask for SMOKE_BOTS server bots (the first one in
 ## gets them), so every run flies some.
 func bot_choice() -> Dictionary:
 	return {"hull": randi_range(0, SpaceSim.HULLS.size() - 1),
-			"color": randi_range(SpaceShip.COLOR_AUTO, SpaceShip.COLORS.size() - 1),
-			"bots": SMOKE_BOTS}
+			"color": SpaceShip.COLOR_AUTO, "bots": SMOKE_BOTS}
 
 
 func _make_server_bot(player: Node) -> BotInput:
 	return SpaceBot.new(player as SpaceShip, self)
 
 
-## Spawn data "hull" and "color" (always a real colour: auto and anything out
-## of range become the seat's colour).
+## Spawn data "hull" and "color" (always a real colour, which is the team:
+## auto and anything out of range join the smallest team, the seat's colour
+## on a tie).
 func _sanitize_choice(choice: Dictionary, index: int) -> Dictionary:
 	var color: int = choice_int(choice, "color", SpaceShip.COLOR_AUTO)
 	if color < 0 or color >= SpaceShip.COLORS.size():
-		color = index % SpaceShip.COLORS.size()
+		color = SpaceSim.smallest_team(team_sizes(), index)
 	return {"hull": SpaceSim.sanitize_hull(choice_int(choice, "hull", SpaceSim.FALCON)),
 			"color": color}
 
@@ -154,6 +160,17 @@ func _create_player(data: Dictionary) -> Node:
 		_banked_scores.erase(int(data["id"]))
 		_picks[int(data["id"])] = [p.hull(), p.color_index()]
 	return p
+
+
+## Ships per team (colour) in the match.
+func team_sizes() -> Array[int]:
+	var sizes: Array[int] = []
+	sizes.resize(SpaceShip.COLORS.size())
+	for p: Node in active_players():
+		var ship: SpaceShip = p as SpaceShip
+		if ship != null:
+			sizes[ship.color_index()] += 1
+	return sizes
 
 
 ## Changing ship keeps your score: bank it until the new ship spawns.
@@ -201,10 +218,12 @@ func _process(delta: float) -> void:
 
 
 ## On top of "everyone moved": the server saw every player shoot, rocks
-## destroyed, and the server bots the clients asked for fly and shoot; each client drew its own shots, drew an asteroid explode, drew
-## its own ship's RCS thrusters (bots turn constantly), drew a server bot
-## move, and received a score
-## from the server, and its own ship is the hull and colour it asked for. Any ship's score counts, not only its
+## destroyed, the server bots the clients asked for fly and shoot, and a shot
+## hit a ship of another team (PvP: bots join on auto, so each is on its own
+## team). Each client drew its own shots, drew an asteroid explode, drew its
+## own ship's RCS thrusters (bots turn constantly), drew a server bot move,
+## showed another ship on its radar, received a score from the server, and got
+## the hull and colour it asked for. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
 ## may spend 2 s of it dead), and the replication path is the same.
 func smoke_report() -> Dictionary:
@@ -223,6 +242,9 @@ func smoke_report() -> Dictionary:
 		report["shooters"] = people_fired
 		report["bot_shooters"] = bots_fired
 		report["bots_peak"] = bots.peak
+		report["pvp_hits"] = director.pvp_hits
+		report["pvp_kills"] = director.pvp_kills
+		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0
 		report["asteroids_destroyed"] = director.asteroids_destroyed
 		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
@@ -237,8 +259,10 @@ func smoke_report() -> Dictionary:
 	report["best_score_seen"] = _best_score_seen
 	report["pick"] = {"asked": join_choice, "got": _own_pick}
 	report["bot_moved"] = _bot_moved
+	report["radar_ships"] = radar.ships_shown
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
-			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved
+			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved \
+			and radar.ships_shown > 0
 	return report
 
 

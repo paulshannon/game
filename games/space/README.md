@@ -2,9 +2,18 @@
 
 ![Three ships shooting asteroids](../../docs/screenshots/space-asteroids-native.png)
 
-**Core loop:** co-op asteroid shooting. Fly a ship with momentum, shoot asteroids, and pick up power-ups. Large rocks split into two medium rocks, and medium rocks into two small ones; smaller rocks are worth more (20 / 50 / 100). Hitting a rock with your ship destroys it, unless your shield takes the hit. You respawn where you were destroyed after 2 s, blinking and invulnerable for 2 s. Shots don't hurt other players. Score is per player and shown top-right.
+**Core loop:** team asteroid shooting with PvP. Fly a ship with momentum, shoot asteroids and ships of other teams, and pick up power-ups. Large rocks split into two medium rocks, and medium rocks into two small ones; smaller rocks are worth more (20 / 50 / 100). Hitting a rock with your ship destroys it, unless your shield takes the hit. You respawn where you were destroyed after 2 s, blinking and invulnerable for 2 s. Score is per player and shown top-right.
 
-**Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, or **auto** (the default): your seat's colour, so players who don't pick still differ. Anyone may pick a colour someone else has; the labels still tell you apart. Your colour also tints your shots and your score.
+**Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, and **colours are teams** (below); **auto** (the default) puts you on the team with the fewest ships. Your colour also tints your shots.
+
+**Teams, PvP and radar** (#35):
+- **Teams:** your colour is your team. Auto joins the smallest team (on a tie, your seat's colour), and bots always join on auto, so teams stay even. Picking a colour joins that team however big it is.
+- **PvP:** shots hit ships of other teams, never your own team (no friendly fire). A shield takes the hit; spawn protection (blinking) lets shots fly through. Shooting a ship down scores **200** (`SpaceSim.SHIP_KILL_POINTS`). The server decides every hit (`SpaceDirector`, swept like rock hits); a shot's team travels in its spawn data, so it counts even if its shooter has left.
+- **Bots** attack enemy ships within 500 px before rocks (`SpaceBot`), so a lone player with bots has a fight on.
+- **Scoreboard:** grouped by team, each team's total first, best team on top.
+- **Radar** (`SpaceRadar`, top-centre): your heading as an arrow in the middle; other ships as dots in their team's colour (allies ringed, enemies solid) within 1500 px, and pinned to the rim beyond that, so you can always find the others; rocks in range as specks.
+
+![Teams, scoreboard and radar](../../docs/screenshots/space-teams-radar.png)
 
 **Bots** (server-flown): the menu's **Bots** row (0–7) asks the server to fly that many bot ships. Only the first person into an empty match decides (the pick goes with the join request; later players' picks are ignored), and going back to select while alone lets you change it. Bots are ordinary ships spawned by the server (`ServerBots`, fake negative peer ids, labelled "Bot (P2)" and "bot" on the scoreboard), flown by `SpaceBot` reading the server's own state, with a random ship and colour. They take free seats only, one gives up its seat when someone joins a full match, and they all leave with the last person.
 
@@ -60,19 +69,20 @@ All are CC0; see `CREDITS.md`.
 ## Smoke test
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. Each smoke client also asks for `SpaceArena.SMOKE_BOTS` (2) server bots. On top of the usual "everyone moved":
-- the **server** checks that every person fired, that rocks were destroyed, and that the server bots flew and fired;
-- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+- the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, and that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team);
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
-| `space_sim.gd` | server (+ tests) | rules: hulls, ship flight, shots, asteroid paths and splits, hits, pickups, points |
+| `space_sim.gd` | server (+ tests) | rules: hulls, teams and PvP hits, ship flight, shots, asteroid paths and splits, hits, pickups, points |
 | `space_ship.gd` | both | the player: sim step (server); Kenney ship, flame, RCS puffs, shield, explosion timing (client) |
 | `space_entity.gd` | both | asteroid / shot / pickup: position from spawn data; sprite; ghost after despawn |
 | `space_field.gd` | server (+ tests) | rules for the unbounded field: where new rocks come in, which are left behind |
-| `space_director.gd` | server | rock spawning, shots, all collisions, scoring, pickups |
+| `space_director.gd` | server | rock spawning, shots, all collisions (PvP included), scoring, pickups |
 | `space_arena.gd` | both | world, spawners, shared clock, camera that follows your ship, `smoke_report()` |
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
-| `space_scoreboard.gd` | client | scores, top-right |
+| `space_scoreboard.gd` | client | scores by team, top-right |
+| `space_radar.gd` | client | radar around your ship, top-centre |
 | `space_bot.gd` | client (smoke bots), server (server bots) | aiming pilot |
 | `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
 | `space_ship_picker.gd` | client | the menu's ship, colour and bots picker; remembers the picks |
