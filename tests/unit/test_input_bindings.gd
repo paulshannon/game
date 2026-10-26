@@ -155,3 +155,9 @@ func test_editor_captures_saves_and_cancels() -> void:
 	assert_true(closed[0])
 	e.free()
 	_fresh()
+
+
+func test_menu_defaults_to_escape_and_start() -> void:
+	var slots: Array[InputEvent] = InputSetup.default_bindings(InputSetup.MENU)
+	assert_eq((slots[0] as InputEventKey).physical_keycode, KEY_ESCAPE)
+	assert_eq((slots[2] as InputEventJoypadButton).button_index, JOY_BUTTON_START)

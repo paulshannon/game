@@ -6,6 +6,8 @@
 
 **Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, or **auto** (the default): your seat's colour, so players who don't pick still differ. Anyone may pick a colour someone else has; the labels still tell you apart. Your colour also tints your shots and your score.
 
+**Changing ship mid-game:** Esc (Start on a controller, the **Menu** button top-left on touch; remappable as "Ship select") despawns your ship and brings the menu back. Pick again and Play: you rejoin on the same connection, in the same seat, with your score. It's the generic `InputSetup.MENU` action: `main.gd` calls `GameBase.leave_to_select()` (the server checks the sender, removes that player and keeps the seat waiting) and Play sends the join request again. Games without a menu get their join button back instead.
+
 ![Picking a green Hornet on the menu](../../docs/screenshots/space-ship-picker.png)
 
 | Ship | Art | Thrust | Top speed | Turn | Fire every |
@@ -25,7 +27,7 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 
 ![RCS thrusters braking and turning](../../docs/screenshots/space-rcs-thrusters.png)
 
-**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire; on a controller, left stick or D-pad, A or RT to fire. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
+**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire, Esc ship select; on a controller, left stick or D-pad, A or RT to fire, Start for ship select. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right, Menu (ship select) top-left. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
 
 **Players:** 1–8 (`Protocol.MAX_PLAYERS`). **Dimension:** 2D. **Port:** 9082. **URL:** `?game=space`.
 

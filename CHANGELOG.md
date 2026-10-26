@@ -6,11 +6,8 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 
 ## [Unreleased]
 
-### Changed
-- **Space: infinite map** (#29): no more edges. The camera follows your ship over a parallax star field; the server keeps rocks coming around every ship and drops the ones left far behind. Ships respawn where they were destroyed, and late joiners spawn next to a ship already playing.
-- **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
-
 ### Added
+- **Back to select with Esc**: Esc (Start on a controller, a **Menu** button top-left on touch; remappable) despawns your player and shows the menu again without leaving the match. In space, pick another ship or colour and Play: same seat, same score. Games without a menu show their join button. Bots do it once per smoke run, and each client checks it spawned again.
 - **Space: pick your ship and colour** (#31): Falcon (all-rounder), Comet (fastest), Hornet (tightest turns) or Gunship (fastest guns), in blue, green, orange, red or auto (your seat's colour), chosen on the menu before Play and remembered. Generic piece for other games: a client sends `GameBase.join_choice` (a small Dictionary) when it connects, and the server spawns its player once that arrives, with the game's sanitized version in the spawn data.
 - **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
 - `fire` input action (Space) and a touch **Fire** button. Games choose their action with `GameBase.action_button()` (which replaces `uses_jump()`); only that button is sent, and a key still held from the menu's Play button is ignored until released.
@@ -18,6 +15,10 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - **Space: Controls settings page** (#26): remap every action to two keys and two controller inputs from the main menu, saved in the browser (or `user://`) and restored at startup. The controls hint is no longer shown on the play screen. Generic pieces for other games' menus: `ControlsEditor`, `InputBindings`, `GameBase.control_names()`.
 - Controller support: left stick and D-pad move, A (and RT for fire) presses the game's action button, on any connected controller.
 - `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
+
+### Changed
+- **Space: infinite map** (#29): no more edges. The camera follows your ship over a parallax star field; the server keeps rocks coming around every ship and drops the ones left far behind. Ships respawn where they were destroyed, and late joiners spawn next to a ship already playing.
+- **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
 
 ### Fixed
 - The exported (release) space server no longer logs "Attempt to disconnect a nonexistent connection" for each asteroid, shot and pickup still alive when it quits, which failed CI's exported-server smoke test. Spawned nodes are now freed before their spawner.
