@@ -143,3 +143,14 @@ func test_fire_button_presses_fire() -> void:
 	c.handle_event(_touch(1, c.button_center(VIEW), false), VIEW)
 	assert_false(Input.is_action_pressed(InputSetup.FIRE))
 	_done(c)
+
+
+func test_menu_button_presses_menu() -> void:
+	var c := _controls()
+	assert_true(c.handle_event(_touch(2, TouchControls.MENU_CENTER, true), VIEW))
+	assert_true(Input.is_action_pressed(InputSetup.MENU))
+	assert_eq(Input.get_vector(InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN),
+			Vector2.ZERO, "not the stick, though it's on the left half")
+	c.handle_event(_touch(2, TouchControls.MENU_CENTER, false), VIEW)
+	assert_false(Input.is_action_pressed(InputSetup.MENU))
+	_done(c)

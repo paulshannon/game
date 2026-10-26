@@ -25,6 +25,11 @@ var _slots := PlayerSlots.new()
 ## their join request).
 var _awaiting: Dictionary = {}   # peer id -> true
 
+## Client: leave_to_select() calls in this game (smoke test).
+var reselects: int = 0
+## Client: how many times our own player was spawned (smoke test).
+var own_spawns: int = 0
+
 # Smoke-test bookkeeping. The per-frame client part only runs during a smoke
 # run (config.run_seconds > 0), off the web main thread in normal play.
 var _peers_seen: Dictionary = {}
@@ -49,13 +54,21 @@ func _ready() -> void:
 	add_child(spawner)
 
 	if not config.is_server:
-		multiplayer.connected_to_server.connect(_send_join)
+		multiplayer.connected_to_server.connect(send_join)
 		_build_client_world()
 
 
-## Client, once connected: ask the server to spawn our player.
-func _send_join() -> void:
+## Client, once connected (and again after leave_to_select()): ask the
+## server to spawn our player with join_choice.
+func send_join() -> void:
 	_request_spawn.rpc_id(1, join_choice)
+
+
+## Client: despawn our player but stay connected, keeping the seat, so the
+## player can pick again (the menu's ship select) and send_join() back in.
+func leave_to_select() -> void:
+	reselects += 1
+	_request_despawn.rpc_id(1)
 
 
 ## Called by Main after the WebSocket server is listening.
@@ -111,6 +124,7 @@ func control_names() -> Dictionary:
 	var act: StringName = action_button()
 	if not act.is_empty():
 		names[act] = InputSetup.label(act)
+	names[InputSetup.MENU] = "Back to select"
 	return names
 
 
@@ -196,12 +210,36 @@ func _request_spawn(choice: Dictionary) -> void:
 	print("[server] peer %d joined slot %d (%d in match)" % [id, index, _slots.count()])
 
 
+@rpc("any_peer", "call_remote", "reliable", 0)
+func _request_despawn() -> void:
+	if not config.is_server:
+		return
+	var id: int = multiplayer.get_remote_sender_id()
+	var p: Node = players_root.get_node_or_null(str(id))
+	if p == null:   # not spawned (or not ours to remove: the path is by sender)
+		return
+	_player_leaving(id, p)
+	# Out of the tree now, not at the end of the frame: a join request in the
+	# same frame spawns a node with the same name. The spawner replicates
+	# the despawn as the node exits.
+	players_root.remove_child(p)
+	p.queue_free()
+	_awaiting[id] = true
+	print("[server] peer %d back to select (seat kept)" % id)
+
+
+## Server: a player is about to be removed (left, or back to select).
+## Subclasses can keep what should survive (space keeps the score).
+func _player_leaving(id: int, player: Node) -> void:
+	_final_travel[id] = float(_final_travel.get(id, 0.0)) + float(player.get("traveled"))
+
+
 func _on_peer_disconnected(id: int) -> void:
 	_slots.release(id)
 	_awaiting.erase(id)
 	var p: Node = players_root.get_node_or_null(str(id))
 	if p != null:
-		_final_travel[id] = float(p.get("traveled"))
+		_player_leaving(id, p)
 		# Removing the node is enough: the spawner replicates the despawn.
 		p.queue_free()
 	print("[server] peer %d left (%d in match)" % [id, _slots.count()])
@@ -220,6 +258,8 @@ func _spawn_from_data(data: Variant) -> Node:
 	var d: Dictionary = data
 	var p: Node = _create_player(d)
 	p.name = str(d["id"])
+	if not config.is_server and Net.is_online() and int(d["id"]) == multiplayer.get_unique_id():
+		own_spawns += 1
 	var relay: InputRelay = p.get_node_or_null("InputRelay") as InputRelay
 	if relay != null:
 		relay.action = action_button()
@@ -253,7 +293,8 @@ func smoke_report() -> Dictionary:
 	if config.is_server:
 		var travel: Dictionary = _final_travel.duplicate()
 		for p: Node in active_players():
-			travel[int(str(p.name))] = float(p.get("traveled"))
+			var id: int = int(str(p.name))
+			travel[id] = float(travel.get(id, 0.0)) + float(p.get("traveled"))
 		var all_moved: bool = not travel.is_empty()
 		for id: Variant in travel:
 			if float(travel[id]) < 1.0:
@@ -262,7 +303,9 @@ func smoke_report() -> Dictionary:
 		return {"ok": ok, "peers_seen": _peers_seen.size(), "max_simultaneous": _max_simultaneous,
 				"travel": travel}
 	var need_remote: bool = config.expect_peers > 1
+	# Every trip back to select (bots make one) ended in a fresh spawn.
 	var ok_client: bool = Net.is_online() and _max_simultaneous >= config.expect_peers \
-			and _own_moved and (_remote_moved or not need_remote)
+			and _own_moved and (_remote_moved or not need_remote) and own_spawns > reselects
 	return {"ok": ok_client, "peer": multiplayer.get_unique_id() if Net.is_online() else 0,
-			"max_simultaneous": _max_simultaneous, "own_moved": _own_moved, "remote_moved": _remote_moved}
+			"max_simultaneous": _max_simultaneous, "own_moved": _own_moved, "remote_moved": _remote_moved,
+			"reselects": reselects, "own_spawns": own_spawns}

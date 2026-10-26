@@ -2,7 +2,8 @@ class_name TouchControls
 extends CanvasLayer
 ## On-screen controls for touch screens (iPad, phones): a floating joystick on
 ## the left half of the screen and, in games that have one, an action button
-## (Jump, Fire: GameBase.action_button()) bottom-right.
+## (Jump, Fire: GameBase.action_button()) bottom-right, and a small Menu button
+## top-left (InputSetup.MENU, which is Esc on a keyboard: back to select).
 ##
 ## They press the same input actions as the keyboard (InputSetup), with analog
 ## strength, so InputRelay's Input.get_vector() picks them up unchanged and the
@@ -15,6 +16,9 @@ extends CanvasLayer
 const BUTTON_RADIUS: float = 64.0
 ## Action button centre, measured from the bottom-right corner of the screen.
 const BUTTON_INSET := Vector2(120, 120)
+## Menu button: below the HUD's status line, top-left.
+const MENU_RADIUS: float = 34.0
+const MENU_CENTER := Vector2(56, 96)
 
 ## Input action the button presses; empty for no button.
 var action: StringName = &""
@@ -22,6 +26,7 @@ var action: StringName = &""
 var _stick := TouchStick.new()
 var _stick_index: int = -1
 var _button_index: int = -1
+var _menu_index: int = -1
 ## Draw the controls once we know the screen is touch (or after a first touch).
 var _shown: bool = false
 var _canvas: Control
@@ -80,6 +85,9 @@ func release_all() -> void:
 	if _button_index != -1:
 		_button_index = -1
 		Input.action_release(action)
+	if _menu_index != -1:
+		_menu_index = -1
+		Input.action_release(InputSetup.MENU)
 	_redraw()
 
 
@@ -92,6 +100,11 @@ func _notification(what: int) -> void:
 
 func _touch_down(index: int, pos: Vector2, view: Vector2) -> bool:
 	_shown = true
+	if _menu_index == -1 and pos.distance_to(MENU_CENTER) <= MENU_RADIUS:
+		_menu_index = index
+		Input.action_press(InputSetup.MENU)
+		_redraw()
+		return true
 	if not action.is_empty() and _button_index == -1 \
 			and pos.distance_to(button_center(view)) <= BUTTON_RADIUS:
 		_button_index = index
@@ -108,6 +121,11 @@ func _touch_down(index: int, pos: Vector2, view: Vector2) -> bool:
 
 
 func _touch_up(index: int) -> bool:
+	if index == _menu_index:
+		_menu_index = -1
+		Input.action_release(InputSetup.MENU)
+		_redraw()
+		return true
 	if index == _button_index:
 		_button_index = -1
 		Input.action_release(action)
@@ -157,12 +175,14 @@ func _draw_controls() -> void:
 		var hint := Vector2(BUTTON_INSET.x, view.y - BUTTON_INSET.y)
 		_canvas.draw_arc(hint, TouchStick.RADIUS, 0.0, TAU, 48, edge, 2.0)
 	if not action.is_empty():
-		var c: Vector2 = button_center(view)
-		_canvas.draw_circle(c, BUTTON_RADIUS, Color(1, 1, 1, 0.35 if _button_index != -1 else 0.15))
-		_canvas.draw_arc(c, BUTTON_RADIUS, 0.0, TAU, 48, edge, 2.0)
-		var font: Font = ThemeDB.fallback_font
-		var size: int = 22
-		var text: String = InputSetup.label(action)
-		var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
-		_canvas.draw_string(font, c + Vector2(-w * 0.5, size * 0.35), text,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1, 1, 1, 0.8))
+		_draw_button(button_center(view), BUTTON_RADIUS, InputSetup.label(action), 22, _button_index != -1)
+	_draw_button(MENU_CENTER, MENU_RADIUS, "Menu", 15, _menu_index != -1)
+
+
+func _draw_button(c: Vector2, radius: float, text: String, size: int, held: bool) -> void:
+	_canvas.draw_circle(c, radius, Color(1, 1, 1, 0.35 if held else 0.15))
+	_canvas.draw_arc(c, radius, 0.0, TAU, 48, Color(1, 1, 1, 0.35), 2.0)
+	var font: Font = ThemeDB.fallback_font
+	var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, size).x
+	_canvas.draw_string(font, c + Vector2(-w * 0.5, size * 0.35), text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, size, Color(1, 1, 1, 0.8))

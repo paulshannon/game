@@ -25,6 +25,8 @@ var clock := SnapshotClock.new()
 var fx: SpaceFx
 var camera: Camera2D
 var _stars: Starfield
+## Server: scores of players back at ship select, restored when they respawn.
+var _banked_scores: Dictionary = {}   # peer id -> score
 
 # Smoke test (client): latched every frame, like GameBase's.
 var _best_own_score: int = 0
@@ -101,6 +103,7 @@ func control_names() -> Dictionary:
 	return {
 		InputSetup.LEFT: "Turn left", InputSetup.RIGHT: "Turn right",
 		InputSetup.UP: "Thrust", InputSetup.DOWN: "Brake", InputSetup.FIRE: "Fire",
+		InputSetup.MENU: "Ship select",
 	}
 
 
@@ -137,8 +140,21 @@ func _create_player(data: Dictionary) -> Node:
 	var p := SpaceShip.new()
 	p.setup(data, config.is_server, config.bot, self)
 	if config.is_server:
+		p.state.score = int(_banked_scores.get(int(data["id"]), 0))
+		_banked_scores.erase(int(data["id"]))
 		_picks[int(data["id"])] = [p.hull(), p.color_index()]
 	return p
+
+
+## Changing ship keeps your score: bank it until the new ship spawns.
+func _player_leaving(id: int, player: Node) -> void:
+	super._player_leaving(id, player)
+	_banked_scores[id] = (player as SpaceShip).state.score
+
+
+func _on_peer_disconnected(id: int) -> void:
+	super._on_peer_disconnected(id)
+	_banked_scores.erase(id)
 
 
 func _spawn_entity(data: Variant) -> Node:

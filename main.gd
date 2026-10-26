@@ -14,6 +14,9 @@ var _elapsed: float = 0.0
 var _finished: bool = false
 var _connects: int = 0
 var _resetting: bool = false
+## Back at select (Esc while playing): still connected, seat kept, no player.
+var _selecting: bool = false
+var _bot_reselected: bool = false
 
 
 func _ready() -> void:
@@ -99,6 +102,10 @@ func _join() -> void:
 		_game.join_choice = _menu.choice()
 	elif _config.bot:
 		_game.join_choice = _game.bot_choice()
+	if Net.is_online():   # back from select: same connection, same seat
+		_selecting = false
+		_game.send_join()
+		return
 	_hud.set_status("Connecting to %s ..." % _config.url)
 	var err: Error = Net.join(_config.url)
 	if err != OK:
@@ -112,6 +119,7 @@ func _on_connection_lost(status: String, button: String) -> void:
 	if _finished or _resetting:
 		return
 	_resetting = true
+	_selecting = false
 	await _reset_game()
 	_resetting = false
 	_hud.set_status(status)
@@ -135,7 +143,33 @@ func _reset_game() -> void:
 	_add_game()
 
 
+## The menu action (Esc, Start, the touch Menu button) while playing: despawn
+## our player and show the select page (the game's menu, or the join button),
+## staying connected. Play spawns us again with the new pick. Bots make one
+## such trip halfway through a smoke run, straight back in.
+func _check_back_to_select() -> void:
+	if _config.is_server or _selecting or _resetting or _finished or not Net.is_online() \
+			or _game.local_player() == null:
+		return
+	if _config.bot:
+		if _bot_reselected or _config.run_seconds <= 0.0 or _elapsed < _config.run_seconds * 0.5:
+			return
+		_bot_reselected = true
+		_game.leave_to_select()
+		_join()
+		return
+	if not Input.is_action_just_pressed(InputSetup.MENU):
+		return
+	_selecting = true
+	_game.leave_to_select()
+	if _menu != null:
+		_menu.show_menu()
+	else:
+		_hud.show_start(_join, "Play")
+
+
 func _process(delta: float) -> void:
+	_check_back_to_select()
 	if _config.run_seconds <= 0.0 or _finished or _resetting:
 		return
 	_elapsed += delta

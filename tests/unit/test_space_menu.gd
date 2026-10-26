@@ -16,7 +16,9 @@ func test_space_names_its_controls() -> void:
 	var space := SpaceArena.new()
 	var names: Dictionary = space.control_names()
 	assert_eq(names[InputSetup.UP], "Thrust")
-	assert_eq(names.keys(), [InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN, InputSetup.FIRE])
+	assert_eq(names.keys(), [InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN,
+			InputSetup.FIRE, InputSetup.MENU])
+	assert_eq(names[InputSetup.MENU], "Ship select")
 	space.free()
 
 
@@ -113,3 +115,23 @@ func test_picker_cycles_ship_and_colour_and_remembers() -> void:
 	p.free()
 	again.free()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(PICKS))
+
+
+func test_ship_select_keeps_the_score() -> void:
+	var space := SpaceArena.new()
+	space.config = LaunchConfig.new()
+	space.config.is_server = true
+	var data: Dictionary = {"id": 5, "index": 0, "hue": 0.0, "pos": Vector2.ZERO, "hull": 0, "color": 0}
+	var first: SpaceShip = space._create_player(data)
+	first.state.score = 320
+	space._player_leaving(5, first)
+	first.free()
+	data["hull"] = SpaceSim.COMET
+	var second: SpaceShip = space._create_player(data)
+	assert_eq(second.state.score, 320, "the new ship starts with the old score")
+	assert_eq(second.hull(), SpaceSim.COMET)
+	second.free()
+	var third: SpaceShip = space._create_player(data)
+	assert_eq(third.state.score, 0, "banked once, restored once")
+	third.free()
+	space.free()

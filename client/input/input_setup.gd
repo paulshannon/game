@@ -14,8 +14,11 @@ const UP: StringName = &"move_up"
 const DOWN: StringName = &"move_down"
 const JUMP: StringName = &"jump"
 const FIRE: StringName = &"fire"
+## Back to the menu's select page (despawns your player; main.gd). Never sent
+## to the server as input.
+const MENU: StringName = &"menu"
 
-const ACTIONS: Array[StringName] = [LEFT, RIGHT, UP, DOWN, JUMP, FIRE]
+const ACTIONS: Array[StringName] = [LEFT, RIGHT, UP, DOWN, JUMP, FIRE, MENU]
 const MOVES: Array[StringName] = [LEFT, RIGHT, UP, DOWN]
 
 const KEY_SLOTS: int = 2
@@ -54,6 +57,8 @@ static func default_bindings(action: StringName) -> Array[InputEvent]:
 			return [_key(KEY_SPACE), null, _button(JOY_BUTTON_A), null]
 		FIRE:
 			return [_key(KEY_SPACE), null, _button(JOY_BUTTON_A), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
+		MENU:
+			return [_key(KEY_ESCAPE), null, _button(JOY_BUTTON_START), null]
 	return [null, null, null, null]
 
 
