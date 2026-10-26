@@ -4,10 +4,10 @@ extends RefCounted
 ## No nodes: SpaceSim.step_ship and SpaceDirector call these on the server,
 ## tests call them directly.
 ##
-## Gravity pulls ships and rocks (shots fly straight: they live under a
-## second). A rock's path is a Fall: stepped from its spawn data the same way
-## on every peer, so nothing about it is replicated after the spawn. Touching
-## the star destroys a ship and burns up rocks and shots. Energy recharges
+## Gravity pulls ships, and holds rocks and pickups in circular orbits
+## (orbit_position: a closed form from the spawn data, so nothing about them
+## is replicated after the spawn). Shots fly straight: they live under a
+## second. Touching the star destroys a ship and burns up shots. Energy recharges
 ## faster the closer you are, and engines and guns spend it.
 
 const CENTER := Vector2.ZERO
@@ -70,45 +70,39 @@ static func safe_spot(at: Vector2) -> Vector2:
 	return CENTER + out * SAFE_RADIUS
 
 
-## A rock's path under gravity, from its spawn data (origin, velocity, born).
-## Every peer takes the same fixed STEPs from the same start, so they all
-## agree on where it is without replicating it: forward in whole steps to the
-## time asked, then a straight-line coast for the remainder. Asking for an
-## earlier time than the last step (a client's render time can slew back a
-## little) coasts backwards from there. Steps are kept, so following a rock
-## through time costs one step per STEP; a late joiner pays for a rock's
-## whole life once.
-class Fall:
-	const STEP: float = 1.0 / 30.0
+## Rocks and pickups circle the star (SpaceBelts keeps rings of them). An
+## orbit is fixed by where the thing was at `born`: it goes round on the
+## circle through that point at the speed gravity holds it there, all in the
+## same direction. That's a closed form, so any peer works out where it is at
+## any server time from the spawn data alone, however long it has orbited:
+## nothing is stepped or replicated. (Inside the MAX_PULL zone, ~425 px, real
+## orbits would be slower; nothing orbits that close.)
+const ORBIT_DIRECTION: float = 1.0   # +1: clockwise on screen (y is down)
 
-	var origin: Vector2
-	var born: float
-	var t: float
-	var pos: Vector2
-	var vel: Vector2
 
-	func _init(p_origin: Vector2, p_velocity: Vector2, p_born: float) -> void:
-		origin = p_origin
-		born = p_born
-		t = p_born
-		pos = p_origin
-		vel = p_velocity
+## Angular speed (rad/s) of a circular orbit `radius` out: GRAVITY / r² is the
+## centripetal pull, so w² r = GRAVITY / r².
+static func orbit_speed(radius: float) -> float:
+	return ORBIT_DIRECTION * sqrt(GRAVITY / (radius * radius * radius))
 
-	func position_at(at: float) -> Vector2:
-		if at <= born:
-			return origin
-		_advance(at)
-		return pos + vel * (at - t)
 
-	func velocity_at(at: float) -> Vector2:
-		_advance(at)
-		return vel
+## Where something orbiting through `origin` at time `born` is at `at`.
+static func orbit_position(origin: Vector2, born: float, at: float) -> Vector2:
+	var rel: Vector2 = origin - CENTER
+	var r: float = rel.length()
+	if r < 1.0 or at <= born:
+		return origin
+	# Wrap first, in full precision: after an hour the raw angle is ~500 rad.
+	return CENTER + rel.rotated(fmod(orbit_speed(r) * (at - born), TAU))
 
-	func _advance(at: float) -> void:
-		while t + STEP <= at:
-			vel += SpaceStar.pull(pos) * STEP
-			pos += vel * STEP
-			t += STEP
+
+## Its velocity there: along the orbit, |w| r.
+static func orbit_velocity(origin: Vector2, born: float, at: float) -> Vector2:
+	var rel: Vector2 = orbit_position(origin, born, at) - CENTER
+	var r: float = rel.length()
+	if r < 1.0:
+		return Vector2.ZERO
+	return rel.rotated(PI / 2.0 * ORBIT_DIRECTION) / r * absf(orbit_speed(r)) * r
 
 
 ## Energy per second for this much engine use (push: -1 brake .. 1 thrust;

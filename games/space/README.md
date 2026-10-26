@@ -10,7 +10,7 @@
 - **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`, capped at 400 px/s². At the spawn ring (900 px) it's a nudge (~90 px/s²); from ~425 px in it's the full 400, just under the weakest engine (the Gunship's 440), so every ship can always climb out at full throttle, slowly. Near the star energy recharges (40/s) faster than the main engine burns it (10/s), so you won't run dry climbing out; coasting in, though, ends in the star. Shots fly straight (they live under a second).
 - **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Nobody (re)spawns closer than 900 px (`SpaceStar.safe_spot`), and new rocks don't come in near it.
 - **Energy** (0–100, bar bottom-centre): recharges at 40/s within 400 px of the star, falling off as 1/distance beyond (20/s at 800, 4/s at 4000), never below 1.5/s. Main engine 10/s, brake 6/s and strafe 8/s at full push; 7 per shot. When the pool can't pay, the engines get only the power it can (none when empty) and the guns don't fire; turning is free. Respawning refills it. So the fight is a loop: dive in to recharge, climb out to fight.
-- **Rocks fall** without being replicated: each one's path is a `SpaceStar.Fall`, stepped in fixed 1/30 s steps from its spawn data (origin, velocity, server time), the same way on every peer, so they all agree. A late joiner steps each rock through its whole life once when it arrives (cheap: rocks are dropped once nobody's near them). A rock's pieces split off its current, gravity-bent velocity.
+- **Rocks orbit** in belts (below), held by the same gravity. Pickups dropped by a rock orbit on from where it broke.
 - **Bots** head back to recharge below 30 energy, keep 5 spare when shooting, and fly straight out if they get within 500 px of the star.
 - The radar shows the star as an orange sun (on the rim when it's out of range): the way home to recharge.
 
@@ -44,7 +44,22 @@ There's no speed cap: drag (0.5/s) is the only limit, so a ship levels off at th
 
 All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick travels in the join request (`GameBase.join_choice`, `{"hull", "color"}`): the server claims your seat when you connect, but spawns your ship only when the request arrives. `SpaceArena._sanitize_choice` rebuilds it from those two keys (hull clamped, auto or out-of-range colour → the seat's), so the spawn data carries `"hull"` and `"color"` and every peer builds the right ship from the first frame.
 
-**Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving. The server keeps at least 6 rocks within 1000 px of every ship (`SpaceField`), bringing new ones in just off screen (800 px out) heading roughly towards that ship, and removes rocks more than 1800 px from every ship, so the field costs the same however far apart players fly. A player who joins late spawns next to a ship already in the match. Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped, so a dropped rock never explodes on anyone's screen. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
+**Asteroid belts:** rocks orbit the star in three rings (`SpaceBelts.RINGS`), each drawn as a faint band of dust:
+
+| Ring | Radius (px) | Width (px) | Rocks | One lap |
+|---|---|---|---|---|
+| 1 | 1500 | ±160 | 28 | ~43 s |
+| 2 | 2500 | ±220 | 40 | ~93 s |
+| 3 | 3600 | ±280 | 54 | ~160 s |
+
+- Every rock and pickup is on a **circular orbit** through where it was spawned, going round clockwise at the speed gravity holds it there (`SpaceStar.orbit_position`: angle grows by sqrt(GRAVITY / r³) per second). That's a closed form, so any peer works out where it is at any server time straight from the spawn data, however long it has been going round: nothing is replicated or stepped, and a late joiner pays nothing to catch up.
+- Inner orbits are faster, so a **broken rock's two pieces**, put on the orbits 30 px inside and outside its own (`SpaceBelts.split_points`), drift apart along the ring like debris.
+- The server fills the belts at the start (mostly large rocks, some medium and small: `SIZE_WEIGHTS`) and **tops a ring up** whenever it's short, one rock every 0.5 s, always at least 900 px from every ship so nothing pops in on screen.
+- Between and beyond the rings, space is empty. The first ring sits just outside where ships spawn (900–1150 px from the star).
+
+![Flying into the first belt: its dust band, rocks orbiting along it, the radar's specks](../../docs/screenshots/space-belt.png)
+
+**Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving. A player who joins late spawns next to a ship already in the match. Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 
@@ -93,7 +108,7 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_sim.gd` | server (+ tests) | rules: hulls, teams and PvP hits, ship flight, shots, asteroid paths and splits, hits, pickups, points |
 | `space_ship.gd` | both | the player: sim step (server); Kenney ship, flame, RCS puffs, shield, explosion timing (client) |
 | `space_entity.gd` | both | asteroid / shot / pickup: position from spawn data; sprite; ghost after despawn |
-| `space_field.gd` | server (+ tests) | rules for the unbounded field: where new rocks come in, which are left behind |
+| `space_belts.gd` | server (+ tests) | the asteroid belts: rings, refills, where new rocks appear, where broken rocks' pieces go |
 | `space_director.gd` | server | rock spawning, shots, all collisions (PvP included), scoring, pickups |
 | `space_arena.gd` | both | world, spawners, shared clock, camera that follows your ship, `smoke_report()` |
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
@@ -101,12 +116,12 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_radar.gd` | client | radar around your ship, top-centre |
 | `space_bot.gd` | client (smoke bots), server (server bots) | aiming pilot |
 | `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
-| `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, a rock's falling path (`Fall`) |
-| `space_star_view.gd` | client | draws the star |
+| `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, circular orbits for rocks and pickups |
+| `space_star_view.gd` | client | draws the star and the belts' dust bands |
 | `space_energy_bar.gd` | client | your energy, bottom-centre |
 | `space_hull_art.gd` | client | each hull's sprite and where its flames and RCS nozzles are |
 | `space_ship_picker.gd` | client | the menu's ship, colour and bots picker; remembers the picks |
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |
 | `starfield.gd` | client | procedural twinkling star field (menu background; parallax arena backdrop) |
 
-**Tuning:** feel constants (thrust, drag, cooldowns, points, pickup times) and the hull table (`HULLS`) are at the top of `space_sim.gd`; field density and distances are at the top of `space_field.gd`; rock speed, spawn rate and the pickup drop rate at the top of `space_director.gd`. To restyle the menu, change the sprite paths and 9-slice margins in `space_ui.gd`.
+**Tuning:** feel constants (thrust, drag, cooldowns, points, pickup times) and the hull table (`HULLS`) are at the top of `space_sim.gd`; belt radii, widths, rock counts and sizes at the top of `space_belts.gd`; gravity and energy at the top of `space_star.gd`; the refill rate and pickup drop rate at the top of `space_director.gd`. To restyle the menu, change the sprite paths and 9-slice margins in `space_ui.gd`.

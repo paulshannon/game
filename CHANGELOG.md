@@ -22,6 +22,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
 
 ### Changed
+- **Space: asteroid belts**: rocks now orbit the star in three rings (at 1500, 2500 and 3600 px, drawn as faint dust bands) instead of drifting in around each ship. Orbits are circular and computed in closed form from the spawn data, so rocks can orbit forever with nothing replicated or stepped; broken rocks' pieces drift apart along the ring, pickups orbit too, and the server tops each ring up off-screen.
 - **Space: no speed cap**: ships are no longer clamped to a top speed; drag is the only limit, so each levels off at thrust ÷ drag (Comet 1400, Falcon 1120, Hornet 1040, Gunship 880 px/s), and gravity or strafing can take it further.
 - **Space: gentler gravity close to the star**: the pull is capped at 400 px/s², just under the weakest ship's thrust, so any ship's engines can always (just) climb out.
 - **Space: infinite map** (#29): no more edges. The camera follows your ship over a parallax star field; the server keeps rocks coming around every ship and drops the ones left far behind. Ships respawn where they were destroyed, and late joiners spawn next to a ship already playing.
