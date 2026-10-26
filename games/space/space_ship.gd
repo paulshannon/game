@@ -110,7 +110,7 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 	SpaceSim.set_hull(state, int(data.get("hull", SpaceSim.FALCON)))
 	_color = int(data.get("color", _net.player_index)) % COLORS.size()
 	state.team = _color
-	SpaceSim.respawn(state, SpaceStar.safe_spot(data["pos"]))
+	SpaceSim.respawn(state, data["pos"])   # by its base (SpaceArena._spawn_position)
 	net_position = state.position
 	net_rotation = state.rotation
 	position = state.position
@@ -184,11 +184,9 @@ func _physics_process(delta: float) -> void:
 		_arena.strafers[peer_id()] = true
 	if was_alive and state.alive:
 		traveled += state.velocity.length() * delta
-	# Where it was destroyed: in unbounded space a fixed start point could be
-	# any distance from the others by now. Spawn protection covers the rocks;
-	# safe_spot moves it out of the star's reach (it may have died in it).
+	# Back at its team's starbase, wherever it was destroyed.
 	if SpaceSim.can_respawn(state):
-		SpaceSim.respawn(state, SpaceStar.safe_spot(state.position))
+		SpaceSim.respawn(state, SpaceBases.spawn_point(_arena.base_of(state.team), _net.player_index, PlayerNet.now()))
 	publish()
 
 

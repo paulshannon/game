@@ -29,7 +29,7 @@ func _build_client_world() -> void:
 	cam.make_current()
 
 
-func _spawn_position(index: int) -> Variant:
+func _spawn_position(index: int, _choice: Dictionary) -> Variant:
 	return Vector2.from_angle(index * TAU / Protocol.MAX_PLAYERS) * 200.0
 
 

@@ -2,13 +2,13 @@
 
 ![Three ships shooting asteroids](../../docs/screenshots/space-asteroids-native.png)
 
-**Core loop:** team asteroid shooting with PvP. Fly a ship with momentum, shoot asteroids and ships of other teams, and pick up power-ups. Large rocks split into two medium rocks, and medium rocks into two small ones; smaller rocks are worth more (20 / 50 / 100). Hitting a rock with your ship destroys it, unless your shield takes the hit. You respawn where you were destroyed after 2 s, blinking and invulnerable for 2 s. Score is per player and shown top-right.
+**Core loop:** team asteroid shooting with PvP. Fly a ship with momentum, shoot asteroids and ships of other teams, and pick up power-ups. Large rocks split into two medium rocks, and medium rocks into two small ones; smaller rocks are worth more (20 / 50 / 100). Hitting a rock with your ship destroys it, unless your shield takes the hit. You respawn at your team's starbase after 2 s, blinking and invulnerable for 2 s. Score is per player and shown top-right.
 
 **Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, and **colours are teams** (below); **auto** (the default) puts you on the team with the fewest ships. Your colour also tints your shots.
 
 **The star and energy:** a star 450 px in radius sits at the centre of the map (`SpaceStar`, drawn in code by `SpaceStarView`).
-- **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`. At the spawn ring (900 px from the centre) it's a nudge (~90 px/s²); at the surface it's ~355, under the weakest engine (the Gunship's 440), so every ship can always climb out at full throttle, slowly. (It's capped at 400 px/s², which only matters inside the star.) Near the star energy recharges (40/s) faster than the main engine burns it (10/s), so you won't run dry climbing out; coasting in, though, ends in the star. Shots fly straight (they live under a second).
-- **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Nobody (re)spawns closer than 900 px (`SpaceStar.safe_spot`), and ships (re)spawn on a circular orbit (`SpaceSim.respawn`), so one left idle goes round the star instead of falling in, and new rocks don't come in near it.
+- **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`. 900 px from the centre it's a nudge (~90 px/s²), and out at the starbases (4600 px) next to nothing (~3.4); at the surface it's ~355, under the weakest engine (the Gunship's 440), so every ship can always climb out at full throttle, slowly. (It's capped at 400 px/s², which only matters inside the star.) Near the star energy recharges (40/s) faster than the main engine burns it (10/s), so you won't run dry climbing out; coasting in, though, ends in the star. Shots fly straight (they live under a second).
+- **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Ships (re)spawn on a circular orbit (`SpaceSim.respawn`), so one left idle goes round the star instead of falling in, and new rocks don't come in near it.
 - **Energy** (0–100, bar bottom-centre): recharges at 40/s within 500 px of the star's centre (just off its surface), falling off as 1/distance beyond (20/s at 1000, 5/s at 4000), never below 1.5/s. Main engine 10/s, brake 6/s and strafe 8/s at full push; 7 per shot. When the pool can't pay, the engines get only the power it can (none when empty) and the guns don't fire; turning is free. Respawning refills it. So the fight is a loop: dive in to recharge, climb out to fight.
 - **Rocks orbit** in belts (below), held by the same gravity. Pickups dropped by a rock orbit on from where it broke.
 - **Bots** head back to recharge below 30 energy, keep 5 spare when shooting, and fly straight out if they get within 300 px of its surface. With no drag they steer their velocity: burn towards the speed they want (up to 380 px/s at a target, stopping 220 px off it), then coast.
@@ -19,7 +19,7 @@
 **Teams, PvP and radar** (#35):
 - **Teams:** your colour is your team. Auto joins the smallest team (on a tie, your seat's colour), and bots always join on auto, so teams stay even. Picking a colour joins that team however big it is.
 - **PvP:** shots hit ships of other teams, never your own team (no friendly fire). A shield takes the hit; spawn protection (blinking) lets shots fly through. Shooting a ship down scores **200** (`SpaceSim.SHIP_KILL_POINTS`). The server decides every hit (`SpaceDirector`, swept like rock hits); a shot's team travels in its spawn data, so it counts even if its shooter has left.
-- **Bots** attack enemy ships within 500 px before rocks (`SpaceBot`), so a lone player with bots has a fight on.
+- **Bots** attack enemy ships within 500 px before rocks (`SpaceBot`), so a lone player with bots has a fight on. Every other bot (by peer id) is a **raider**: it hunts the nearest enemy ship anywhere on the map (up to 700 px/s when it's far off), since the teams start at bases across the map.
 - **Scoreboard:** grouped by team, each team's total first, best team on top.
 - **Radar** (`SpaceRadar`, top-centre): your heading as an arrow in the middle; other ships as dots in their team's colour (allies ringed, enemies solid) within 1500 px, and pinned to the rim beyond that, so you can always find the others; rocks in range as specks.
 
@@ -56,11 +56,15 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 - Most new rocks go round on **circles**; 40% start 0.88–1.12× circular speed (`SpaceBelts.OFF_SPEED`), so their ellipses sweep in and out across the ring.
 - A **broken rock's two pieces** fly apart with equal and opposite kicks of 30–140 px/s in a random direction (`SPLIT_KICK`). Circular speed in ring 1 is ~220 px/s and escape ~310, so gentle kicks leave pieces on new ellipses near the ring, and hard ones fling a piece out of the system or drop it into the star. Rocks that touch the star burn; ones that get beyond 6000 px have escaped and are removed. Pickups carry on along the broken rock's orbit.
 - The server fills the belts at the start (mostly large rocks, some medium and small: `SIZE_WEIGHTS`) and **tops a ring up** whenever it's short, one rock every 0.5 s, always at least 900 px from every ship so nothing pops in on screen (and never past 1.3× the rings' total, since rocks on wild orbits between the rings count towards none).
-- Between and beyond the rings, space is empty. The first ring sits just outside where ships spawn (900–1150 px from the star).
+- Between and beyond the rings, space is empty (but for the starbases, below).
 
 ![Flying into the first belt: its dust band, rocks orbiting along it, the radar's specks](../../docs/screenshots/space-belt.png)
 
-**Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving. A player who joins late spawns next to a ship already in the match. Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
+**Starbases:** each team has a starbase (`SpaceBases`, a Kenney station in a dashed ring of the team's colour, drawn by `SpaceBaseView`), and the four sit equally spaced (90° apart) on an outer rim 4600 px from the star, out past the belts. That's the spawn area: you spawn and respawn beside your own team's base (230 px off it, each seat on its own side). The bases orbit the star together at circular speed (one lap ≈ 3¾ min), and you spawn moving with yours, so an idle ship keeps pace with it. Where a base is comes from the server time alone, so nothing about them is replicated. They're purely the spawn area: nothing hits or shoots them. The radar shows them as squares in their team's colour, yours solid (on the rim when out of range), so the way home is always there. Energy recharges slowly that far out (~4/s), so the fight is still a loop: dive in to recharge, come out to fight. In smoke runs (`--expect-peers`), which last seconds, every team shares base 0 (`SpaceArena.base_of`) so ships meet and PvP is still proven over the network.
+
+![Spawning beside the blue starbase; the radar shows the other bases on its rim](../../docs/screenshots/space-starbase.png)
+
+**Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving.  Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 
@@ -102,7 +106,7 @@ All are CC0; see `CREDITS.md`.
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. Each smoke client also asks for `SpaceArena.SMOKE_BOTS` (2) server bots. On top of the usual "everyone moved":
 - the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team), that every person's ship strafed, and that ships spent and recharged energy;
-- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, showed its energy below full (replicated), drew its own ship's RCS thrusters and strafing, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, showed its energy below full (replicated), drew its own ship beside a starbase, drew its own ship's RCS thrusters and strafing, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
@@ -120,6 +124,8 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, circular speed |
 | `space_orbit.gd` | both (+ tests) | where a rock or pickup is at any server time: two-body orbits in closed form |
 | `space_star_view.gd` | client | draws the star and the belts' dust bands |
+| `space_bases.gd` | both (+ tests) | the teams' starbases: where each is at any server time, spawn points beside them |
+| `space_base_view.gd` | client | draws the starbases |
 | `space_energy_bar.gd` | client | your energy, bottom-centre |
 | `space_hull_art.gd` | client | each hull's sprite and where its flames and RCS nozzles are |
 | `space_ship_picker.gd` | client | the menu's ship, colour and bots picker; remembers the picks |

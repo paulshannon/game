@@ -6,9 +6,9 @@ extends RefCounted
 ## all sorts of orbits, some diving into the star, some escaping. SpaceDirector
 ## fills the rings at the start and tops them up. No nodes: tests call these.
 ##
-## The first ring sits just outside where ships spawn (SpaceStar.SAFE_RADIUS),
-## so there's something to shoot at once; the outer ones are bigger and
-## slower. Between and beyond the rings, space is empty.
+## The first ring is a few hundred px off the star; the outer ones are bigger
+## and slower, and the teams' starbases (SpaceBases) orbit beyond the last.
+## Between and beyond the rings, space is empty.
 
 ## Each ring: Vector3(radius, half width, rocks to keep in it).
 const RINGS: Array[Vector3] = [

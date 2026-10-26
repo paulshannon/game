@@ -68,19 +68,16 @@ func test_engines_get_what_energy_can_pay_for() -> void:
 	assert_near(low.energy, 0.0, 0.0001, "spent the lot, this tick's recharge included")
 
 
-func test_respawn_refills_and_safe_spot_keeps_clear_of_the_star() -> void:
+func test_respawn_refills_and_starts_on_a_circular_orbit() -> void:
 	var s := _ship(Vector2(0, 100000))
 	s.energy = 3.0
-	SpaceSim.respawn(s, SpaceStar.safe_spot(Vector2(50, 0)))
+	SpaceSim.respawn(s, Vector2(900, 0))
 	assert_near(s.energy, SpaceStar.ENERGY_MAX, 0.001)
-	assert_near(SpaceStar.distance(s.position), SpaceStar.SAFE_RADIUS, 0.01)
-	assert_true(s.position.x > 0.0, "straight out the way it was")
+	assert_eq(s.position, Vector2(900, 0))
 	assert_eq(s.velocity, SpaceStar.circular_velocity(s.position), "on a circular orbit")
 	for i: int in 10 * 60:
 		SpaceSim.step_ship(s, Vector2.ZERO, false, DT)
-	assert_near(SpaceStar.distance(s.position), SpaceStar.SAFE_RADIUS, 5.0, "an idle ship goes round, not in")
-	assert_eq(SpaceStar.safe_spot(Vector2(5000, 0)), Vector2(5000, 0), "already safe")
-	assert_near(SpaceStar.distance(SpaceStar.safe_spot(SpaceStar.CENTER)), SpaceStar.SAFE_RADIUS, 0.01)
+	assert_near(SpaceStar.distance(s.position), 900.0, 5.0, "an idle ship goes round, not in")
 
 
 func test_the_star_destroys_whatever_touches_it() -> void:

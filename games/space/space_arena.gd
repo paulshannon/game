@@ -2,7 +2,8 @@ class_name SpaceArena
 extends GameBase
 ## Space: team asteroid shooting and PvP round a star (SpaceStar), in an
 ## unbounded star field (the camera follows your ship). Rocks orbit in belts
-## (SpaceBelts). Ships with momentum (SpaceShip) shoot asteroids that split
+## (SpaceBelts); each team's ships spawn at its starbase on the outer rim
+## (SpaceBases). Ships with momentum (SpaceShip) shoot asteroids that split
 ## into smaller, more valuable pieces; some drop pickups. Rules are SpaceSim, run on the server by SpaceDirector.
 ## Its main menu is SpaceMenu.
 ##
@@ -10,8 +11,9 @@ extends GameBase
 ##   Game/Entities        <- asteroids, shots, pickups (SpaceEntity), by id
 ##   Game/EntitySpawner   <- MultiplayerSpawner, spawn_path -> Entities
 ##   Game/Director        <- server only (SpaceDirector)
-##   Game/Star, Fx, EnergyBar, Radar, Scoreboard  <- client only (SpaceStarView,
-##                        SpaceFx, SpaceEnergyBar, SpaceRadar, SpaceScoreboard)
+##   Game/Star, Bases, Fx, EnergyBar, Radar, Scoreboard  <- client only
+##                        (SpaceStarView, SpaceBaseView, SpaceFx, SpaceEnergyBar,
+##                        SpaceRadar, SpaceScoreboard)
 
 ## How the touch controls work, shown on the menu's Controls page on touch
 ## screens (they can't be remapped).
@@ -27,6 +29,7 @@ var director: SpaceDirector
 var clock := SnapshotClock.new()
 var fx: SpaceFx
 var radar: SpaceRadar
+var bases: SpaceBaseView
 var energy_bar: SpaceEnergyBar
 var camera: Camera2D
 var _stars: Starfield
@@ -86,6 +89,12 @@ func _build_client_world() -> void:
 	var star := SpaceStarView.new()
 	star.name = "Star"
 	add_child(star)
+
+	bases = SpaceBaseView.new()
+	bases.name = "Bases"
+	bases.clock = clock
+	bases.arena = self
+	add_child(bases)
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
@@ -159,18 +168,17 @@ func _sanitize_choice(choice: Dictionary, index: int) -> Dictionary:
 			"color": color}
 
 
-## Next to the star's safe ring at the start; once people have flown off, a
-## newcomer joins them instead (round the first ship still in the match).
-func _spawn_position(index: int) -> Variant:
-	# Nobody yet: together, just outside the ring where the star's pull is
-	# mild (SpaceShip moves anything closer out to it: SpaceStar.safe_spot).
-	var around: Vector2 = SpaceStar.CENTER + Vector2(SpaceStar.SAFE_RADIUS + 250.0, 0)
-	for p: Node in active_players():
-		var ship: SpaceShip = p as SpaceShip
-		if ship != null:
-			around = ship.state.position
-			break
-	return around + Vector2.from_angle(index * TAU / Protocol.MAX_PLAYERS) * 160.0
+## Next to your team's starbase (SpaceBases), where it is now.
+func _spawn_position(index: int, choice: Dictionary) -> Variant:
+	return SpaceBases.spawn_point(base_of(int(choice["color"])), index, PlayerNet.now())
+
+
+## Server: the base a team's ships (re)spawn at, its own. A smoke run lasts
+## seconds, too short to cross the map between bases, so there every team
+## shares base 0 and PvP is still proven over the network (where the bases
+## are is unit-tested).
+func base_of(team: int) -> int:
+	return 0 if config.expect_peers > 0 else team
 
 
 func _create_player(data: Dictionary) -> Node:
@@ -294,9 +302,11 @@ func smoke_report() -> Dictionary:
 	report["radar_ships"] = radar.ships_shown
 	report["lowest_energy_shown"] = energy_bar.lowest_shown
 	report["own_strafe_frames"] = _own_strafe_frames
+	report["own_closest_to_base"] = roundi(minf(bases.own_closest, 1e6))
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
 			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved \
 			and radar.ships_shown > 0 and _own_strafe_frames > 0 \
+			and bases.own_closest < SpaceBases.SPAWN_DISTANCE + 150.0 \
 			and energy_bar.lowest_shown < int(SpaceStar.ENERGY_MAX)
 	return report
 

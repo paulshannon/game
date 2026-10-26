@@ -3,11 +3,13 @@ extends TestCase
 ## rocks off every ship's screen, broken rocks onto neighbouring orbits.
 
 
-func test_rings_sit_outside_the_spawn_ring_and_dont_overlap() -> void:
-	var outer_edge: float = SpaceStar.SAFE_RADIUS
+func test_rings_sit_between_the_star_and_the_bases_and_dont_overlap() -> void:
+	var outer_edge: float = SpaceStar.RADIUS
 	for ring: Vector3 in SpaceBelts.RINGS:
-		assert_true(ring.x - ring.y > outer_edge, "clear of the last one (and of spawns)")
+		assert_true(ring.x - ring.y > outer_edge, "clear of the star or the last ring")
 		outer_edge = ring.x + ring.y
+	assert_true(SpaceBases.RIM_RADIUS - SpaceBases.SPAWN_DISTANCE > outer_edge + 300.0, "bases and spawns beyond the belts")
+	assert_true(SpaceBases.RIM_RADIUS + SpaceBases.SPAWN_DISTANCE < SpaceBelts.ESCAPE_RADIUS)
 	assert_eq(SpaceBelts.target_total(), 28 + 40 + 54)
 
 

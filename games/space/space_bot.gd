@@ -13,7 +13,9 @@ extends BotInput
 ## reads the rocks' positions at the current server time. Wanders when there
 ## is nothing to aim at.
 
-## Enemy ships closer than this are attacked before rocks.
+## Enemy ships closer than this are attacked before rocks. Raiders (every
+## other bot, by peer id) hunt the nearest enemy ship however far off: the
+## teams start at bases across the map, so someone has to go looking.
 const ENGAGE_RANGE: float = 500.0
 ## Closer to the star than this, it flies straight out (gravity there beats
 ## most engines). Below LOW_ENERGY it heads back to recharge at
@@ -28,12 +30,16 @@ const STRAFE_BURST: float = 0.4
 ## Fastest it wants to close on a target (px/s), slower when near; it holds
 ## HOLD_OFF px away and burns only when its velocity is SLACK px/s off.
 const APPROACH_SPEED: float = 380.0
+## Further off than FAR, it closes at up to FAR_SPEED.
+const FAR: float = 1500.0
+const FAR_SPEED: float = 700.0
 const HOLD_OFF: float = 220.0
 const SLACK: float = 70.0
 
 var _ship: SpaceShip
 var _arena: SpaceArena
 var _clock: float = 0.0
+var _raider: bool = false
 # Its velocity, from how its (drawn) position moves.
 var _velocity: Vector2 = Vector2.ZERO
 var _last_position: Vector2 = Vector2.ZERO
@@ -42,6 +48,7 @@ var _tracking: bool = false
 
 func _init(ship: SpaceShip, arena: SpaceArena) -> void:
 	super(ship.peer_id())
+	_raider = posmod(ship.peer_id(), 2) == 0
 	_ship = ship
 	_arena = arena
 
@@ -67,7 +74,8 @@ func update(delta: float) -> void:
 		_fly_to(SpaceStar.CENTER + out.normalized() * RECHARGE_ORBIT, false)
 		return
 	var aim: Variant = _nearest_enemy()
-	strafe = _strafe(aim != null)
+	# Weave only in a fight: a raider crossing the map saves its energy.
+	strafe = _strafe(aim != null and (aim as Vector2).distance_to(_ship.position) < ENGAGE_RANGE)
 	if aim == null:
 		var rock: SpaceEntity = _nearest_asteroid()
 		if rock == null:
@@ -97,7 +105,8 @@ func _fly_to(target: Vector2, shoot: bool) -> void:
 	var to: Vector2 = target - _ship.position
 	var dist: float = to.length()
 	var dir: Vector2 = to / dist if dist > 1.0 else Vector2.ZERO
-	var want: Vector2 = dir * clampf((dist - HOLD_OFF) * 1.5, -APPROACH_SPEED * 0.5, APPROACH_SPEED)
+	var top: float = FAR_SPEED if dist > FAR else APPROACH_SPEED
+	var want: Vector2 = dir * clampf((dist - HOLD_OFF) * 1.5, -APPROACH_SPEED * 0.5, top)
 	var error: Vector2 = want - _velocity
 	var burn: bool = error.length() > SLACK
 	var face: Vector2 = error if burn else to
@@ -118,11 +127,11 @@ func _strafe(fighting: bool) -> float:
 	return 1.0 if int(_clock / STRAFE_EVERY) % 2 == 0 else -1.0
 
 
-## Where the nearest enemy ship within ENGAGE_RANGE is (another team, alive,
-## not protected), or null.
+## Where the nearest enemy ship within ENGAGE_RANGE (anywhere, for a raider)
+## is (another team, alive, not protected), or null.
 func _nearest_enemy() -> Variant:
 	var best: Variant = null
-	var best_d: float = ENGAGE_RANGE * ENGAGE_RANGE
+	var best_d: float = INF if _raider else ENGAGE_RANGE * ENGAGE_RANGE
 	for p: Node in _arena.active_players():
 		var other: SpaceShip = p as SpaceShip
 		if other == null or other == _ship or other.color_index() == _ship.color_index() \
