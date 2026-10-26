@@ -1,8 +1,9 @@
 class_name SpaceMenu
 extends GameMenu
 ## Main menu for the space game: star field, title, and a Kenney sci-fi panel
-## with Play, Controls (remapping, ControlsEditor) and Quit (outside the
-## browser, where quitting means nothing). After a lost connection main.gd
+## with the ship and colour picker (SpaceShipPicker), Play, Controls
+## (remapping, ControlsEditor) and Quit (outside the browser, where quitting
+## means nothing). After a lost connection main.gd
 ## shows it again with the reason and "Rejoin" / "Try again" on Play.
 
 var _play: Button
@@ -14,6 +15,7 @@ var _title: Label
 var _credit: Label
 var _control_names: Dictionary
 var _touch_help: String
+var _picker: SpaceShipPicker
 
 
 ## `control_names`: action -> label for the Controls page
@@ -84,12 +86,18 @@ func _build_panel() -> PanelContainer:
 	_status.visible = false
 	box.add_child(_status)
 
+	_picker = SpaceShipPicker.new()
+	box.add_child(_picker)
 	_play = _button("Play", request_play)
 	box.add_child(_play)
 	box.add_child(_button("Controls", show_controls))
 	if not OS.has_feature("web"):  # a browser tab can't quit itself
 		box.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	return panel
+
+
+func choice() -> Dictionary:
+	return _picker.choice()
 
 
 ## The Controls page: a second panel in place of the main one, so the title

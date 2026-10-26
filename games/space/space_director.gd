@@ -49,7 +49,7 @@ func start() -> void:
 func fire(ship: SpaceShip) -> void:
 	var s: SpaceSim.Ship = ship.state
 	_spawn(SpaceEntity.Kind.SHOT, SpaceSim.shot_origin(s), SpaceSim.shot_velocity(s),
-			PlayerNet.now(), ship.player_index() % SpaceShip.COLORS.size(), ship.peer_id())
+			PlayerNet.now(), ship.color_index(), ship.peer_id())
 	shots_fired[ship.peer_id()] = int(shots_fired.get(ship.peer_id(), 0)) + 1
 
 

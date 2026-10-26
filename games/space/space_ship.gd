@@ -11,7 +11,12 @@ extends Node2D
 
 const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
 const COLORS: Array[String] = ["blue", "green", "orange", "red"]
+## A colour pick meaning "my seat's colour" (player index), the default.
+const COLOR_AUTO: int = -1
 const SHIP_SCALE: float = 0.5
+## The Gunship hull is Kenney's enemy ship 2, which comes in other colours:
+## orange players get the black one.
+const ENEMY_COLORS: Dictionary = {"blue": "Blue", "green": "Green", "orange": "Black", "red": "Red"}
 
 ## flags bits. Sent with every snapshot (an int), so each change is stamped
 ## with the server time it happened at and drawn at that moment.
@@ -42,6 +47,7 @@ var rcs_frames: int = 0
 var state := SpaceSim.Ship.new()
 
 var _net := PlayerNet.new(true)
+var _color: int = 0   # index into COLORS
 var _arena: SpaceArena
 
 # Replicated every snapshot (PlayerNet.SYNCED).
@@ -95,6 +101,8 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 			PackedStringArray(["score"]))
 	if use_bot and not server_side:
 		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
+	SpaceSim.set_hull(state, int(data.get("hull", SpaceSim.FALCON)))
+	_color = int(data.get("color", _net.player_index)) % COLORS.size()
 	SpaceSim.respawn(state, data["pos"])
 	net_position = state.position
 	net_rotation = state.rotation
@@ -111,8 +119,18 @@ func player_index() -> int:
 	return _net.player_index
 
 
+## Which of SpaceSim.HULLS this ship is (from the spawn data).
+func hull() -> int:
+	return state.hull
+
+
+## Which of COLORS the player picked (or their seat's, for COLOR_AUTO).
+func color_index() -> int:
+	return _color
+
+
 func color_name() -> String:
-	return COLORS[_net.player_index % COLORS.size()]
+	return COLORS[_color]
 
 
 ## Client: as drawn now. Server: as simulated.
@@ -224,10 +242,22 @@ func _on_pickup(before: int, after: int, _at: float) -> void:
 ## Every texture a ship can use, to load them before play starts.
 static func texture_paths() -> Array[String]:
 	var out: Array[String] = [PACK + "Effects/fire08.png", PACK + "Effects/shield1.png", RCS_TEXTURE]
-	for shape: int in range(1, 4):
+	for h: int in SpaceSim.HULLS.size():
 		for c: String in COLORS:
-			out.append(PACK + "playerShip%d_%s.png" % [shape, c])
+			out.append(hull_texture(h, c))
 	return out
+
+
+## The Kenney sprite for a hull in one of COLORS. Player ships point up, the
+## enemy ship (Gunship) down: see hull_points_down().
+static func hull_texture(hull_index: int, color: String) -> String:
+	if hull_index == SpaceSim.GUNSHIP:
+		return PACK + "Enemies/enemy%s2.png" % ENEMY_COLORS.get(color, "Blue")
+	return PACK + "playerShip%d_%s.png" % [SpaceSim.sanitize_hull(hull_index) + 1, color]
+
+
+static func hull_points_down(hull_index: int) -> bool:
+	return hull_index == SpaceSim.GUNSHIP
 
 
 func _build_visuals() -> void:
@@ -251,8 +281,9 @@ func _build_visuals() -> void:
 
 	var ship := Sprite2D.new()
 	ship.name = "Ship"
-	var shape: int = 1 + (_net.player_index / COLORS.size()) % 3
-	ship.texture = load(PACK + "playerShip%d_%s.png" % [shape, color_name()]) as Texture2D
+	ship.texture = load(hull_texture(state.hull, color_name())) as Texture2D
+	if hull_points_down(state.hull):
+		ship.rotation = PI
 	art.add_child(ship)
 
 	_shield = Sprite2D.new()

@@ -209,3 +209,62 @@ func test_dead_ship_fires_no_thrusters() -> void:
 	SpaceSim.step_ship(s, Vector2(1, 1), false, DT)
 	assert_false(s.braking)
 	assert_eq(s.turning, 0)
+
+
+# --- hulls --------------------------------------------------------------------
+
+func test_new_ship_is_the_all_rounder() -> void:
+	var s := _ship()
+	assert_eq(s.hull, SpaceSim.FALCON)
+	SpaceSim.set_hull(s, SpaceSim.FALCON)
+	assert_near(s.thrust, SpaceSim.THRUST, 0.001)
+	assert_near(s.turn_speed, SpaceSim.TURN_SPEED, 0.001)
+
+
+func test_hull_out_of_range_is_clamped() -> void:
+	var s := _ship()
+	SpaceSim.set_hull(s, 99)
+	assert_eq(s.hull, SpaceSim.HULLS.size() - 1)
+	SpaceSim.set_hull(s, -5)
+	assert_eq(s.hull, 0)
+
+
+func test_four_hulls_each_best_at_something() -> void:
+	assert_eq(SpaceSim.HULLS.size(), 4)
+	var fastest := _ship()
+	var nimble := _ship()
+	var gunner := _ship()
+	var falcon := _ship()
+	SpaceSim.set_hull(fastest, SpaceSim.COMET)
+	SpaceSim.set_hull(nimble, SpaceSim.HORNET)
+	SpaceSim.set_hull(gunner, SpaceSim.GUNSHIP)
+	for s: SpaceSim.Ship in [fastest, nimble, gunner, falcon]:
+		assert_true(fastest.max_speed >= s.max_speed and fastest.thrust >= s.thrust)
+		assert_true(nimble.turn_speed >= s.turn_speed)
+		assert_true(gunner.fire_cooldown <= s.fire_cooldown)
+
+
+func test_hull_handling_is_used_by_step() -> void:
+	var comet := _ship()
+	SpaceSim.set_hull(comet, SpaceSim.COMET)
+	_run(comet, Vector2.UP, 3.0)
+	assert_true(comet.velocity.length() > SpaceSim.MAX_SPEED, "faster than the all-rounder's cap")
+	assert_true(comet.velocity.length() <= comet.max_speed + 0.001)
+
+	var hornet := _ship()
+	SpaceSim.set_hull(hornet, SpaceSim.HORNET)
+	_run(hornet, Vector2.RIGHT, 0.25)
+	assert_near(hornet.rotation, hornet.turn_speed * 0.25, 0.01)
+
+	var gunship := _ship()
+	SpaceSim.set_hull(gunship, SpaceSim.GUNSHIP)
+	var shots: int = _run(gunship, Vector2.ZERO, 1.0, true)
+	assert_true(shots >= 6, "one shot per hull cooldown (0.15 s), got %d" % shots)
+
+
+func test_rapid_fire_never_slows_a_hull_down() -> void:
+	var s := _ship()
+	SpaceSim.set_hull(s, SpaceSim.GUNSHIP)
+	SpaceSim.apply_pickup(s, SpaceSim.RAPID)
+	assert_true(SpaceSim.step_ship(s, Vector2.ZERO, true, DT))
+	assert_near(s.cooldown, minf(SpaceSim.RAPID_COOLDOWN, s.fire_cooldown), 0.001)

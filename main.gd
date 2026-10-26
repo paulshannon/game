@@ -95,6 +95,10 @@ func _start_client() -> void:
 
 
 func _join() -> void:
+	if _menu != null:
+		_game.join_choice = _menu.choice()
+	elif _config.bot:
+		_game.join_choice = _game.bot_choice()
 	_hud.set_status("Connecting to %s ..." % _config.url)
 	var err: Error = Net.join(_config.url)
 	if err != OK:
