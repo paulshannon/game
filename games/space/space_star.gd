@@ -21,8 +21,6 @@ const RADIUS: float = 450.0
 ## nothing survives, but keeps the pull finite there.
 const GRAVITY: float = 7.2e7
 const MAX_PULL: float = 400.0
-## Nobody (re)spawns closer than this.
-const SAFE_RADIUS: float = 900.0
 
 # --- energy -------------------------------------------------------------------
 
@@ -60,15 +58,6 @@ static func recharge_rate(at: Vector2) -> float:
 ## Whether a circle at `at` touches the star.
 static func touches(at: Vector2, radius: float) -> bool:
 	return distance(at) <= RADIUS + radius
-
-
-## `at`, moved straight out to SAFE_RADIUS if it's closer than that.
-static func safe_spot(at: Vector2) -> Vector2:
-	var r: float = distance(at)
-	if r >= SAFE_RADIUS:
-		return at
-	var out: Vector2 = (at - CENTER) / r if r > 0.001 else Vector2.RIGHT
-	return CENTER + out * SAFE_RADIUS
 
 
 ## Rocks and pickups orbit the star (SpaceOrbit: circles, ellipses, dives

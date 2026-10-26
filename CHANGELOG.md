@@ -7,6 +7,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 ## [Unreleased]
 
 ### Added
+- **Space: starbases**: each colour has a starbase, the four equally spaced on an outer rim (4600 px out, past the belts) and orbiting the star together. Ships spawn and respawn beside their own team's base, moving with it; the radar shows the bases (yours solid). Every other bot is a raider that hunts enemy ships anywhere, so the teams still meet. `GameBase._spawn_position` now also gets the sanitized join choice (e.g. the team).
 - **Space: a star with gravity, and energy**: a star at the centre of the map pulls ships and rocks in (rocks' falling paths are stepped identically on every peer, so still nothing is replicated per rock) and destroys whatever touches it. Ships have an energy pool (bar bottom-centre) that recharges faster the closer they are to the star; engines and guns spend it. The radar shows the way to the star; bots go back to recharge and keep clear of it.
 - **Space: each hull has its own jets**: flames and RCS nozzles placed on each ship's art (flames flush with the hull, RCS puffs a few pixels out) (twin wing engines on the Falcon, outboard on the Comet, a big central flame plus two small on the Hornet, twin rear jets and prong-tip nozzles on the Gunship).
 - **Space: strafe**: Q / E (LB / RB or the right stick) slide your ship sideways without turning, at 60% of its thrust, with side thrusters drawn. Bots weave in dogfights. The input protocol gains a `strafe` axis (`submit_input(move, jump, fire, strafe, seq)`).

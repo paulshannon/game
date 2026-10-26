@@ -42,7 +42,7 @@ client/                    SnapshotBuffer/SnapshotClock (interpolation), StateTi
                            InputBindings (remap + save), ControlsEditor (settings page),
                            TouchControls + TouchStick (on-screen stick + action button), Hud, GameMenu
 games/<name>/              one folder per prototype + README.md (core loop, players, packs):
-                           box_arena_2d, box_arena_3d, space (2D: asteroids, team PvP, star with gravity
+                           box_arena_2d, box_arena_3d, space (2D: asteroids, team PvP, team starbases, star with gravity
                            and energy, pickups, score, radar; main menu; second spawner for entities)
 assets/kenney/<pack>/      whole packs, original structure, License kept
 assets/own/                anything we made or modified

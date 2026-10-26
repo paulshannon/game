@@ -175,7 +175,9 @@ static func choice_int(choice: Dictionary, key: String, fallback: int) -> int:
 	return fallback
 
 
-func _spawn_position(_index: int) -> Variant:
+## Where a player spawns: seat `index`, `choice` the game's sanitized join
+## choice (_sanitize_choice, e.g. its team).
+func _spawn_position(_index: int, _choice: Dictionary) -> Variant:
 	return null
 
 
@@ -244,7 +246,7 @@ func spawn_player(id: int, index: int, choice: Dictionary, extra: Dictionary = {
 	var hue: float = fmod(index * 0.61803398875, 1.0)
 	var data: Dictionary = _sanitize_choice(choice, index)
 	data.merge(extra, true)
-	data.merge({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)}, true)
+	data.merge({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index, data)}, true)
 	spawner.spawn(data)
 
 

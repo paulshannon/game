@@ -62,7 +62,7 @@ func action_button() -> StringName:
 	return InputSetup.JUMP
 
 
-func _spawn_position(index: int) -> Variant:
+func _spawn_position(index: int, _choice: Dictionary) -> Variant:
 	var a: float = index * TAU / Protocol.MAX_PLAYERS
 	return Vector3(cos(a), 0.0, sin(a)) * 4.0
 
