@@ -8,7 +8,7 @@ extends RefCounted
 ## (origin, velocity, birth time), so any peer can work out where one is at
 ## any server time without per-tick replication: shots fly straight
 ## (shot_position), asteroids and pickups orbit the star
-## (SpaceStar.orbit_position) in belts (SpaceBelts).
+## (SpaceOrbit) in belts (SpaceBelts).
 ##
 ## Space is unbounded: nothing has an edge to bounce off.
 
