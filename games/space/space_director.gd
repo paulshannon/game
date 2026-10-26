@@ -23,7 +23,8 @@ var ships_destroyed: int = 0
 var pvp_hits: int = 0                 # shots that hit a ship (shield or not)
 var pvp_kills: int = 0
 var star_deaths: int = 0              # ships that flew into the star
-var star_burns: int = 0               # shots it swallowed (rocks orbit clear of it)
+var star_burns: int = 0               # rocks and shots it swallowed
+var rocks_escaped: int = 0            # flung beyond SpaceBelts.ESCAPE_RADIUS
 var pickups_taken: int = 0
 ## Peer id -> score, latched as it changes so it outlives the player leaving.
 var scores: Dictionary = {}
@@ -42,8 +43,7 @@ func _init() -> void:
 func start() -> void:
 	for ring: int in SpaceBelts.RINGS.size():
 		for i: int in int(SpaceBelts.RINGS[ring].z):
-			spawn_asteroid(SpaceBelts.size_for(_rng.randf()),
-					SpaceBelts.point_in(ring, _rng.randf(), _rng.randf()), PlayerNet.now())
+			_spawn_belt_rock(SpaceBelts.point_in(ring, _rng.randf(), _rng.randf()), PlayerNet.now())
 
 
 func fire(ship: SpaceShip) -> void:
@@ -53,9 +53,16 @@ func fire(ship: SpaceShip) -> void:
 	shots_fired[ship.peer_id()] = int(shots_fired.get(ship.peer_id(), 0)) + 1
 
 
-## A rock that is at `at` at server time `born`, orbiting the star from there.
-func spawn_asteroid(size: int, at: Vector2, born: float) -> void:
-	_spawn(SpaceEntity.Kind.ASTEROID, at, Vector2.ZERO, born, size)
+## A rock at `at` moving at `velocity` at server time `born`: it orbits the
+## star from there (SpaceOrbit).
+func spawn_asteroid(size: int, at: Vector2, velocity: Vector2, born: float) -> void:
+	_spawn(SpaceEntity.Kind.ASTEROID, at, velocity, born, size)
+
+
+## A new belt rock: a random size, at or near circular speed.
+func _spawn_belt_rock(at: Vector2, born: float) -> void:
+	spawn_asteroid(SpaceBelts.size_for(_rng.randf()), at,
+			SpaceBelts.spawn_velocity(at, _rng.randf(), _rng.randf()), born)
 
 
 func _spawn(kind: int, at: Vector2, velocity: Vector2, born: float, variant: int, owner: int = 0) -> void:
@@ -157,17 +164,19 @@ func _shoot_ship(ship: SpaceShip, shooter: SpaceShip) -> void:
 			ship.player_index() + 1])
 
 
-## Score it to `scorer` (null for a ram), break it into pieces on the orbits
-## either side of its own, maybe drop a pickup (which orbits there too).
+## Score it to `scorer` (null for a ram), break it into two pieces kicked
+## apart at random (onto new orbits, some wild), maybe drop a pickup (which
+## carries on along the rock's orbit).
 func _destroy_asteroid(rock: SpaceEntity, now: float, scorer: SpaceShip) -> void:
 	var at: Vector2 = rock.position_at(now)
+	var velocity: Vector2 = rock.velocity_at(now)
 	if scorer != null:
 		scorer.state.score += SpaceSim.asteroid_points(rock.variant)
 		scores[scorer.peer_id()] = scorer.state.score
-	for piece: Vector2 in SpaceBelts.split_points(rock.variant, at):
-		spawn_asteroid(rock.variant - 1, piece, now)
+	for piece: Array in SpaceBelts.split(rock.variant, at, velocity, _rng.randf() * TAU, _rng.randf()):
+		spawn_asteroid(rock.variant - 1, piece[0], piece[1], now)
 	if _rng.randf() < PICKUP_CHANCE:
-		_spawn(SpaceEntity.Kind.PICKUP, at, Vector2.ZERO, now, _rng.randi() % SpaceSim.PICKUP_KINDS)
+		_spawn(SpaceEntity.Kind.PICKUP, at, velocity, now, _rng.randi() % SpaceSim.PICKUP_KINDS)
 	asteroids_destroyed += 1
 	rock.queue_free()
 
@@ -186,20 +195,23 @@ func _ship_of(peer: int) -> SpaceShip:
 	return p as SpaceShip if p != null and not p.is_queued_for_deletion() else null
 
 
-## Top the belts up: when a ring is short of rocks, a new one appears in it
-## (one per ASTEROID_INTERVAL), somewhere off every ship's screen. Rocks
-## orbit clear of the star; the burn check only matters if that ever changes.
+## Burn rocks that dived into the star, drop ones that escaped, and top the
+## belts up: when a ring is short of rocks, a new one appears in it (one per
+## ASTEROID_INTERVAL), somewhere off every ship's screen.
 func _tend_belts(rocks: Array[SpaceEntity], now: float, delta: float) -> void:
 	var positions := PackedVector2Array()
 	for rock: SpaceEntity in rocks:
 		var at: Vector2 = rock.position_at(now)
 		if SpaceStar.touches(at, rock.radius()):
-			star_burns += 1
+			star_burns += 1   # dived in: clients that can see it watch it burst
+			rock.queue_free()
+		elif SpaceBelts.escaped(at):
+			rocks_escaped += 1   # flung out of the system: off everyone's screen
 			rock.queue_free()
 		else:
 			positions.append(at)
 	_spawn_timer -= delta
-	if _spawn_timer > 0.0:
+	if _spawn_timer > 0.0 or positions.size() >= SpaceBelts.target_total() * SpaceBelts.MAX_OVERFILL:
 		return
 	var ring: int = SpaceBelts.neediest(SpaceBelts.counts(positions))
 	if ring == -1:
@@ -211,5 +223,5 @@ func _tend_belts(rocks: Array[SpaceEntity], now: float, delta: float) -> void:
 	for attempt: int in 12:
 		var at: Vector2 = SpaceBelts.point_in(ring, _rng.randf(), _rng.randf())
 		if SpaceBelts.is_clear(at, ships):
-			spawn_asteroid(SpaceBelts.size_for(_rng.randf()), at, now)
+			_spawn_belt_rock(at, now)
 			return

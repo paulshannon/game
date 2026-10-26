@@ -87,43 +87,11 @@ func test_the_star_destroys_whatever_touches_it() -> void:
 	assert_false(s.alive, "shield and spawn protection don't help")
 
 
-# --- orbits -------------------------------------------------------------------
+# --- circular speed ------------------------------------------------------------
 
-func test_an_orbit_keeps_its_radius_and_goes_round_at_gravitys_speed() -> void:
-	var origin := Vector2(1500, 0)
-	var w: float = SpaceStar.orbit_speed(1500.0)
-	assert_near(w * w * 1500.0, SpaceStar.GRAVITY / (1500.0 * 1500.0), 1e-6, "w² r = GRAVITY / r²")
-	var quarter: float = (PI / 2.0) / absf(w)
-	var at: Vector2 = SpaceStar.orbit_position(origin, 10.0, 10.0 + quarter)
-	assert_near(at.length(), 1500.0, 0.01, "stays on its circle")
-	assert_near(at.x, 0.0, 0.05, "a quarter turn later")
-	assert_near(at.y, 1500.0 * SpaceStar.ORBIT_DIRECTION, 0.05, "clockwise on screen (y down)")
-	assert_eq(SpaceStar.orbit_position(origin, 10.0, 5.0), origin, "held at its origin before it's born")
-
-
-func test_inner_orbits_are_faster() -> void:
-	assert_true(absf(SpaceStar.orbit_speed(1400.0)) > absf(SpaceStar.orbit_speed(1600.0)))
-
-
-func test_an_orbit_is_the_same_whenever_asked() -> void:
-	# A late joiner asks once, an hour on; the server asked every tick. A closed
-	# form gives the same answer either way, with no stepping.
-	var origin := Vector2(-1800, 900)
-	var hour: float = 3600.0
-	var at: Vector2 = SpaceStar.orbit_position(origin, 100.0, 100.0 + hour)
-	assert_near(at.length(), origin.length(), 0.05, "still on its circle after an hour")
-	var expected: Vector2 = origin.rotated(fmod(SpaceStar.orbit_speed(origin.length()) * hour, TAU))
-	assert_near(at.distance_to(expected), 0.0, 0.05)
-
-
-func test_orbit_velocity_is_along_the_circle() -> void:
-	var v: Vector2 = SpaceStar.orbit_velocity(Vector2(2000, 0), 0.0, 0.0)
+func test_circular_velocity_is_along_the_circle_at_gravitys_speed() -> void:
+	var v: Vector2 = SpaceStar.circular_velocity(Vector2(2000, 0))
 	assert_near(v.x, 0.0, 0.001, "tangential")
-	assert_near(v.length(), sqrt(SpaceStar.GRAVITY / 2000.0), 0.01, "v = sqrt(GRAVITY / r)")
-	# A ship at that speed and spot circles too, under step_ship's gravity.
-	var s := _ship(Vector2(2000, 0))
-	s.velocity = v
-	for i: int in 600:
-		s.energy = SpaceStar.ENERGY_MAX
-		SpaceSim.step_ship(s, Vector2.ZERO, false, DT)
-	assert_true(absf(s.position.length() - 2000.0) < 2000.0 * 0.25, "roughly round (drag slows it)")
+	assert_near(v.y, sqrt(SpaceStar.GRAVITY / 2000.0) * SpaceStar.ORBIT_DIRECTION, 0.01,
+			"v = sqrt(GRAVITY / r), clockwise on screen")
+	assert_true(absf(SpaceStar.orbit_speed(1400.0)) > absf(SpaceStar.orbit_speed(1600.0)), "inner is faster")

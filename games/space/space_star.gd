@@ -4,11 +4,11 @@ extends RefCounted
 ## No nodes: SpaceSim.step_ship and SpaceDirector call these on the server,
 ## tests call them directly.
 ##
-## Gravity pulls ships, and holds rocks and pickups in circular orbits
-## (orbit_position: a closed form from the spawn data, so nothing about them
-## is replicated after the spawn). Shots fly straight: they live under a
-## second. Touching the star destroys a ship and burns up shots. Energy recharges
-## faster the closer you are, and engines and guns spend it.
+## Gravity pulls ships, and holds rocks and pickups in orbit (SpaceOrbit: a
+## closed form from the spawn data, so nothing about them is replicated after
+## the spawn). Shots fly straight: they live under a second. Touching the star
+## destroys a ship and burns up rocks and shots. Energy recharges faster the
+## closer you are, and engines and guns spend it.
 
 const CENTER := Vector2.ZERO
 ## Touching this destroys a ship (and burns rocks and shots).
@@ -70,13 +70,9 @@ static func safe_spot(at: Vector2) -> Vector2:
 	return CENTER + out * SAFE_RADIUS
 
 
-## Rocks and pickups circle the star (SpaceBelts keeps rings of them). An
-## orbit is fixed by where the thing was at `born`: it goes round on the
-## circle through that point at the speed gravity holds it there, all in the
-## same direction. That's a closed form, so any peer works out where it is at
-## any server time from the spawn data alone, however long it has orbited:
-## nothing is stepped or replicated. (Inside the MAX_PULL zone, ~425 px, real
-## orbits would be slower; nothing orbits that close.)
+## Rocks and pickups orbit the star (SpaceOrbit: circles, ellipses, dives
+## and escapes, in closed form from their spawn data). Belts are spawned at
+## or near circular speed, all going round the same way.
 const ORBIT_DIRECTION: float = 1.0   # +1: clockwise on screen (y is down)
 
 
@@ -86,23 +82,13 @@ static func orbit_speed(radius: float) -> float:
 	return ORBIT_DIRECTION * sqrt(GRAVITY / (radius * radius * radius))
 
 
-## Where something orbiting through `origin` at time `born` is at `at`.
-static func orbit_position(origin: Vector2, born: float, at: float) -> Vector2:
-	var rel: Vector2 = origin - CENTER
-	var r: float = rel.length()
-	if r < 1.0 or at <= born:
-		return origin
-	# Wrap first, in full precision: after an hour the raw angle is ~500 rad.
-	return CENTER + rel.rotated(fmod(orbit_speed(r) * (at - born), TAU))
-
-
-## Its velocity there: along the orbit, |w| r.
-static func orbit_velocity(origin: Vector2, born: float, at: float) -> Vector2:
-	var rel: Vector2 = orbit_position(origin, born, at) - CENTER
+## The velocity that keeps something at `at` on a circle round the star.
+static func circular_velocity(at: Vector2) -> Vector2:
+	var rel: Vector2 = at - CENTER
 	var r: float = rel.length()
 	if r < 1.0:
 		return Vector2.ZERO
-	return rel.rotated(PI / 2.0 * ORBIT_DIRECTION) / r * absf(orbit_speed(r)) * r
+	return rel.rotated(PI / 2.0 * ORBIT_DIRECTION) / r * sqrt(GRAVITY / r)
 
 
 ## Energy per second for this much engine use (push: -1 brake .. 1 thrust;

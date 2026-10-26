@@ -275,6 +275,7 @@ func smoke_report() -> Dictionary:
 		report["energy_gained"] = roundi(energy_gained)
 		report["star_deaths"] = director.star_deaths
 		report["star_burns"] = director.star_burns
+		report["rocks_escaped"] = director.rocks_escaped
 		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0 \
 				and people_strafed >= config.expect_peers and energy_used > 0.0 and energy_gained > 0.0
 		report["asteroids_destroyed"] = director.asteroids_destroyed

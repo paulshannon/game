@@ -52,9 +52,10 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 | 2 | 2500 | ±220 | 40 | ~93 s |
 | 3 | 3600 | ±280 | 54 | ~160 s |
 
-- Every rock and pickup is on a **circular orbit** through where it was spawned, going round clockwise at the speed gravity holds it there (`SpaceStar.orbit_position`: angle grows by sqrt(GRAVITY / r³) per second). That's a closed form, so any peer works out where it is at any server time straight from the spawn data, however long it has been going round: nothing is replicated or stepped, and a late joiner pays nothing to catch up.
-- Inner orbits are faster, so a **broken rock's two pieces**, put on the orbits 30 px inside and outside its own (`SpaceBelts.split_points`), drift apart along the ring like debris.
-- The server fills the belts at the start (mostly large rocks, some medium and small: `SIZE_WEIGHTS`) and **tops a ring up** whenever it's short, one rock every 0.5 s, always at least 900 px from every ship so nothing pops in on screen.
+- Every rock and pickup **orbits the star** from where, and how fast, it was spawned (`SpaceOrbit`): pure two-body motion under the same gravity, so circles, ellipses, dives into the star and escapes. It's solved in **closed form** (Kepler's problem with universal variables: one Newton solve per query; a bound orbit takes the elapsed time modulo its period first), so any peer works out where a rock is at any server time straight from its spawn data, however long it has been going round: nothing is replicated or stepped, a late joiner pays nothing to catch up, and each rock caches its last answer (the server asks about it many times a tick). Tests check it against a fine step-by-step integration and that energy and angular momentum hold for an hour.
+- Most new rocks go round on **circles**; 40% start 0.88–1.12× circular speed (`SpaceBelts.OFF_SPEED`), so their ellipses sweep in and out across the ring.
+- A **broken rock's two pieces** fly apart with equal and opposite kicks of 30–140 px/s in a random direction (`SPLIT_KICK`). Circular speed in ring 1 is ~220 px/s and escape ~310, so gentle kicks leave pieces on new ellipses near the ring, and hard ones fling a piece out of the system or drop it into the star. Rocks that touch the star burn; ones that get beyond 6000 px have escaped and are removed. Pickups carry on along the broken rock's orbit.
+- The server fills the belts at the start (mostly large rocks, some medium and small: `SIZE_WEIGHTS`) and **tops a ring up** whenever it's short, one rock every 0.5 s, always at least 900 px from every ship so nothing pops in on screen (and never past 1.3× the rings' total, since rocks on wild orbits between the rings count towards none).
 - Between and beyond the rings, space is empty. The first ring sits just outside where ships spawn (900–1150 px from the star).
 
 ![Flying into the first belt: its dust band, rocks orbiting along it, the radar's specks](../../docs/screenshots/space-belt.png)
@@ -108,7 +109,7 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_sim.gd` | server (+ tests) | rules: hulls, teams and PvP hits, ship flight, shots, asteroid paths and splits, hits, pickups, points |
 | `space_ship.gd` | both | the player: sim step (server); Kenney ship, flame, RCS puffs, shield, explosion timing (client) |
 | `space_entity.gd` | both | asteroid / shot / pickup: position from spawn data; sprite; ghost after despawn |
-| `space_belts.gd` | server (+ tests) | the asteroid belts: rings, refills, where new rocks appear, where broken rocks' pieces go |
+| `space_belts.gd` | server (+ tests) | the asteroid belts: rings, refills, new rocks' speeds, broken rocks' kicks, escapes |
 | `space_director.gd` | server | rock spawning, shots, all collisions (PvP included), scoring, pickups |
 | `space_arena.gd` | both | world, spawners, shared clock, camera that follows your ship, `smoke_report()` |
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
@@ -116,7 +117,8 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_radar.gd` | client | radar around your ship, top-centre |
 | `space_bot.gd` | client (smoke bots), server (server bots) | aiming pilot |
 | `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
-| `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, circular orbits for rocks and pickups |
+| `space_star.gd` | server (+ tests) | the star's gravity and burn, energy recharge and costs, circular speed |
+| `space_orbit.gd` | both (+ tests) | where a rock or pickup is at any server time: two-body orbits in closed form |
 | `space_star_view.gd` | client | draws the star and the belts' dust bands |
 | `space_energy_bar.gd` | client | your energy, bottom-centre |
 | `space_hull_art.gd` | client | each hull's sprite and where its flames and RCS nozzles are |

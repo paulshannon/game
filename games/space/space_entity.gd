@@ -5,7 +5,7 @@ extends Node2D
 ##
 ## Each one moves on a path fixed by its spawn data, so nothing is
 ## replicated after the spawn: asteroids and pickups orbit the star
-## (SpaceStar.orbit_position), shots fly straight (SpaceSim.shot_position); any peer computes its position at any
+## (SpaceOrbit), shots fly straight (SpaceSim.shot_position); any peer computes its position at any
 ## server time. Clients draw it at the same server time as the ships
 ## (the arena's shared SnapshotClock), INTERP_DELAY in the past.
 ##
@@ -34,9 +34,9 @@ const PICKUPS: Array[String] = ["Power-ups/powerupBlue_bolt.png",
 
 var kind: int = Kind.ASTEROID
 var id: int = 0
-## Where it was at `born` (asteroids and pickups orbit the star from there).
+## Where it was, and how fast it was going, at `born`: asteroids and pickups
+## orbit the star from there, shots fly straight on.
 var origin: Vector2 = Vector2.ZERO
-## Shots only.
 var velocity: Vector2 = Vector2.ZERO
 ## Server time it was spawned at.
 var born: float = 0.0
@@ -46,6 +46,8 @@ var variant: int = 0
 var owner_peer: int = 0
 
 var _data: Dictionary = {}
+## Asteroids and pickups: their orbit (closed form, cached).
+var _orbit: SpaceOrbit = null
 var _clock: SnapshotClock = null
 var _fx: SpaceFx = null
 var _ghost_until: float = INF
@@ -69,6 +71,8 @@ func setup(data: Dictionary) -> void:
 	born = float(data["t"])
 	variant = int(data["s"])
 	owner_peer = int(data["o"])
+	if kind != Kind.SHOT:
+		_orbit = SpaceOrbit.new(origin, velocity, born)
 	name = "E%d" % id
 	position = position_at(born)
 
@@ -105,7 +109,12 @@ func age(server_time: float) -> float:
 func position_at(server_time: float) -> Vector2:
 	if kind == Kind.SHOT:
 		return SpaceSim.shot_position(origin, velocity, maxf(age(server_time), 0.0))
-	return SpaceStar.orbit_position(origin, born, server_time)
+	return _orbit.position_at(server_time)
+
+
+## Its velocity at a server time.
+func velocity_at(server_time: float) -> Vector2:
+	return velocity if _orbit == null else _orbit.velocity_at(server_time)
 
 
 func _process(_delta: float) -> void:
