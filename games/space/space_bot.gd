@@ -3,7 +3,9 @@ extends BotInput
 ## Pilot for the space game's bots: keeps clear of the star and goes back
 ## to it to recharge when low on energy; otherwise turns toward the nearest
 ## enemy ship close by (another team), or else the nearest asteroid it can see; thrusts when
-## far, brakes when close, and fires when lined up. So the bots really shoot
+## far, holds off when close, and fires when lined up. With no drag it steers
+## its velocity, not just its nose: it burns towards the speed it wants and
+## coasts once it's there. So the bots really shoot
 ## rocks and each other and score over the network, proving the whole loop
 ## (input -> server rules -> spawns/despawns/score -> client).
 ## On a client (smoke-test bots) it sees only what that client draws, like a
@@ -16,17 +18,26 @@ const ENGAGE_RANGE: float = 500.0
 ## Closer to the star than this, it flies straight out (gravity there beats
 ## most engines). Below LOW_ENERGY it heads back to recharge at
 ## RECHARGE_ORBIT, and it keeps SHOT_RESERVE spare when shooting.
-const STAR_DANGER: float = 500.0
+const STAR_DANGER: float = SpaceStar.RADIUS + 300.0
 const LOW_ENERGY: int = 30
-const RECHARGE_ORBIT: float = 650.0
+const RECHARGE_ORBIT: float = SpaceStar.RADIUS + 400.0
 const SHOT_RESERVE: float = 5.0
 ## Away from a fight, a short sideways burst this often (alternating sides).
 const STRAFE_EVERY: float = 3.0
 const STRAFE_BURST: float = 0.4
+## Fastest it wants to close on a target (px/s), slower when near; it holds
+## HOLD_OFF px away and burns only when its velocity is SLACK px/s off.
+const APPROACH_SPEED: float = 380.0
+const HOLD_OFF: float = 220.0
+const SLACK: float = 70.0
 
 var _ship: SpaceShip
 var _arena: SpaceArena
 var _clock: float = 0.0
+# Its velocity, from how its (drawn) position moves.
+var _velocity: Vector2 = Vector2.ZERO
+var _last_position: Vector2 = Vector2.ZERO
+var _tracking: bool = false
 
 
 func _init(ship: SpaceShip, arena: SpaceArena) -> void:
@@ -40,8 +51,10 @@ func update(delta: float) -> void:
 		super.update(delta)
 		fire = false
 		strafe = 0.0
+		_tracking = false
 		return
 	_clock += delta
+	_track(delta)
 	# Too close to the star: get out first. Low on energy: head back in to
 	# recharge. Otherwise an enemy ship close by (PvP), else the nearest rock.
 	var out: Vector2 = _ship.position - SpaceStar.CENTER
@@ -65,20 +78,34 @@ func update(delta: float) -> void:
 	_fly_to(aim as Vector2, _ship.energy >= SpaceStar.SHOT_COST + SHOT_RESERVE)
 
 
-## Turn towards `target`, close in or back off, and shoot when lined up (if
-## `shoot`).
+func _track(delta: float) -> void:
+	var at: Vector2 = _ship.position
+	if _tracking and delta > 0.0:
+		var seen: Vector2 = (at - _last_position) / delta
+		_velocity = _velocity.lerp(seen, 0.3) if seen.length() < 20000.0 else _velocity
+	else:
+		_velocity = Vector2.ZERO
+	_last_position = at
+	_tracking = true
+
+
+## Close in on `target` (or back off), and shoot when lined up (if `shoot`).
+## It wants to move towards it at up to APPROACH_SPEED, slowing to a stop at
+## HOLD_OFF: when its velocity is further off than SLACK it turns to face the
+## difference and burns; otherwise it faces the target and coasts.
 func _fly_to(target: Vector2, shoot: bool) -> void:
 	var to: Vector2 = target - _ship.position
-	var off: float = angle_difference(_ship.rendered_rotation(), to.angle())
 	var dist: float = to.length()
+	var dir: Vector2 = to / dist if dist > 1.0 else Vector2.ZERO
+	var want: Vector2 = dir * clampf((dist - HOLD_OFF) * 1.5, -APPROACH_SPEED * 0.5, APPROACH_SPEED)
+	var error: Vector2 = want - _velocity
+	var burn: bool = error.length() > SLACK
+	var face: Vector2 = error if burn else to
+	var off: float = angle_difference(_ship.rendered_rotation(), face.angle())
 	move.x = clampf(off * 3.0, -1.0, 1.0)
-	if dist > 320.0:
-		move.y = -0.8          # close in
-	elif dist < 130.0:
-		move.y = 0.6           # brake / back off
-	else:
-		move.y = -0.2
-	fire = shoot and absf(off) < 0.3 and dist < 700.0
+	move.y = -1.0 if burn and absf(off) < 0.6 else 0.0   # -y is forward
+	var aim_off: float = angle_difference(_ship.rendered_rotation(), to.angle())
+	fire = shoot and absf(aim_off) < 0.3 and dist < 700.0
 	jump = false
 
 

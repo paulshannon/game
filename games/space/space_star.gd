@@ -12,12 +12,13 @@ extends RefCounted
 
 const CENTER := Vector2.ZERO
 ## Touching this destroys a ship (and burns rocks and shots).
-const RADIUS: float = 90.0
+const RADIUS: float = 450.0
 ## Pull = GRAVITY / r² (px/s²), capped at MAX_PULL. At 900 px that's ~90 (a
-## nudge); from ~425 px in it's the full MAX_PULL, just under the weakest
-## hull's thrust (the Gunship's 440), so any ship's engines can still climb
-## out at full throttle, slowly (if it has the energy: near the star it
-## recharges faster than the main engine burns).
+## nudge); at the surface it's ~355, under the weakest hull's thrust (the
+## Gunship's 440), so any ship's engines can still climb out at full
+## throttle, slowly (if it has the energy: near the star it recharges faster
+## than the main engine burns). MAX_PULL only matters inside the star, which
+## nothing survives, but keeps the pull finite there.
 const GRAVITY: float = 7.2e7
 const MAX_PULL: float = 400.0
 ## Nobody (re)spawns closer than this.
@@ -29,7 +30,7 @@ const ENERGY_MAX: float = 100.0
 ## Recharge per second: RECHARGE_NEAR within NEAR_RADIUS, falling off as
 ## 1/distance beyond it (half at twice the distance), never below RECHARGE_MIN.
 const RECHARGE_NEAR: float = 40.0
-const NEAR_RADIUS: float = 400.0
+const NEAR_RADIUS: float = 500.0
 const RECHARGE_MIN: float = 1.5
 ## Spent per second at full push, and per shot.
 const THRUST_COST: float = 10.0
