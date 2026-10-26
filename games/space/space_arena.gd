@@ -14,6 +14,8 @@ extends GameBase
 
 ## How the touch controls work, shown on the menu's Controls page on touch
 ## screens (they can't be remapped).
+## Server bots each smoke-test client asks for.
+const SMOKE_BOTS: int = 2
 const TOUCH_HELP: String = "Touch: the stick's left/right turns, pushing it up thrusts; tap Fire to shoot."
 
 var entities_root: Node
@@ -33,6 +35,7 @@ var _best_own_score: int = 0
 var _best_score_seen: int = 0
 var _own_rcs_frames: int = 0
 var _own_pick: Dictionary = {}
+var _bot_moved: bool = false
 # Smoke test (server): hull and colour each player spawned with, by peer id.
 var _picks: Dictionary = {}
 
@@ -109,9 +112,16 @@ func control_names() -> Dictionary:
 
 ## Bots pick a random hull and colour (or auto), so smoke runs cover them
 ## all over time.
+## Smoke-test clients also ask for SMOKE_BOTS server bots (the first one in
+## gets them), so every run flies some.
 func bot_choice() -> Dictionary:
 	return {"hull": randi_range(0, SpaceSim.HULLS.size() - 1),
-			"color": randi_range(SpaceShip.COLOR_AUTO, SpaceShip.COLORS.size() - 1)}
+			"color": randi_range(SpaceShip.COLOR_AUTO, SpaceShip.COLORS.size() - 1),
+			"bots": SMOKE_BOTS}
+
+
+func _make_server_bot(player: Node) -> BotInput:
+	return SpaceBot.new(player as SpaceShip, self)
 
 
 ## Spawn data "hull" and "color" (always a real colour: auto and anything out
@@ -182,24 +192,37 @@ func _process(delta: float) -> void:
 	for p: Node in active_players():
 		var ship: SpaceShip = p as SpaceShip
 		_best_score_seen = maxi(_best_score_seen, ship.score)
+		if ship.is_bot() and ship.rendered_distance > 1.0:
+			_bot_moved = true
 		if ship == own:
 			_best_own_score = maxi(_best_own_score, ship.score)
 			_own_rcs_frames = maxi(_own_rcs_frames, ship.rcs_frames)
 			_own_pick = {"hull": ship.hull(), "color": ship.color_index()}
 
 
-## On top of "everyone moved": the server saw every player shoot and rocks
-## destroyed; each client drew its own shots, drew an asteroid explode, drew
-## its own ship's RCS thrusters (bots turn constantly), and received a score
+## On top of "everyone moved": the server saw every player shoot, rocks
+## destroyed, and the server bots the clients asked for fly and shoot; each client drew its own shots, drew an asteroid explode, drew
+## its own ship's RCS thrusters (bots turn constantly), drew a server bot
+## move, and received a score
 ## from the server, and its own ship is the hull and colour it asked for. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
 ## may spend 2 s of it dead), and the replication path is the same.
 func smoke_report() -> Dictionary:
 	var report: Dictionary = super.smoke_report()
 	if config.is_server:
-		var everyone_fired: bool = director.shots_fired.size() >= config.expect_peers
-		report["ok"] = bool(report["ok"]) and everyone_fired and director.asteroids_destroyed > 0
-		report["shooters"] = director.shots_fired.size()
+		var people_fired: int = 0
+		var bots_fired: int = 0
+		for id: int in director.shots_fired:
+			if ServerBots.is_bot(id):
+				bots_fired += 1
+			else:
+				people_fired += 1
+		# Smoke clients ask for SMOKE_BOTS bots: they must have flown and shot.
+		report["ok"] = bool(report["ok"]) and people_fired >= config.expect_peers \
+				and director.asteroids_destroyed > 0 and bots.peak >= SMOKE_BOTS and bots_fired > 0
+		report["shooters"] = people_fired
+		report["bot_shooters"] = bots_fired
+		report["bots_peak"] = bots.peak
 		report["asteroids_destroyed"] = director.asteroids_destroyed
 		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
@@ -213,8 +236,9 @@ func smoke_report() -> Dictionary:
 	report["own_rcs_frames"] = _own_rcs_frames
 	report["best_score_seen"] = _best_score_seen
 	report["pick"] = {"asked": join_choice, "got": _own_pick}
+	report["bot_moved"] = _bot_moved
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
-			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked()
+			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved
 	return report
 
 

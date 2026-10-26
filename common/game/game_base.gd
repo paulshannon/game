@@ -21,6 +21,8 @@ var players_root: Node
 var spawner: MultiplayerSpawner
 
 var _slots := PlayerSlots.new()
+## Server: players the server flies itself (the first person in picks how many).
+var bots := ServerBots.new(self)
 ## Server: peers holding a slot whose player isn't spawned yet (waiting for
 ## their join request).
 var _awaiting: Dictionary = {}   # peer id -> true
@@ -184,6 +186,8 @@ func _create_player(_data: Dictionary) -> Node:
 ## choice, so the spawn data is complete from the first frame.
 func _on_peer_connected(id: int) -> void:
 	var index: int = _slots.claim(id)
+	if index == -1 and bots.give_up_seat():   # bots never keep a person out
+		index = _slots.claim(id)
 	if index == -1:
 		print("[server] rejecting peer %d: match full" % id)
 		multiplayer.multiplayer_peer.disconnect_peer(id)
@@ -199,12 +203,12 @@ func _request_spawn(choice: Dictionary) -> void:
 	if not _awaiting.has(id):   # unknown peer, or already spawned
 		return
 	_awaiting.erase(id)
+	# The first person in the match decides how many bots fly.
+	var want_bots: int = choice_int(choice, "bots", -1)
+	if want_bots >= 0 and _spawned_people() == 0:
+		bots.set_count(want_bots)
 	var index: int = _slots.claim(id)
-	# Golden-ratio hue spacing gives distinct colors for any player count.
-	var hue: float = fmod(index * 0.61803398875, 1.0)
-	var data: Dictionary = _sanitize_choice(choice, index)
-	data.merge({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)}, true)
-	spawner.spawn(data)
+	spawn_player(id, index, choice)
 	_peers_seen[id] = true
 	_max_simultaneous = maxi(_max_simultaneous, _slots.count())
 	print("[server] peer %d joined slot %d (%d in match)" % [id, index, _slots.count()])
@@ -228,6 +232,40 @@ func _request_despawn() -> void:
 	print("[server] peer %d back to select (seat kept)" % id)
 
 
+## Server: spawns a player in seat `index` on every peer. `choice` is the
+## unsanitized join choice; `extra` goes into the spawn data as is.
+func spawn_player(id: int, index: int, choice: Dictionary, extra: Dictionary = {}) -> void:
+	# Golden-ratio hue spacing gives distinct colors for any player count.
+	var hue: float = fmod(index * 0.61803398875, 1.0)
+	var data: Dictionary = _sanitize_choice(choice, index)
+	data.merge(extra, true)
+	data.merge({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)}, true)
+	spawner.spawn(data)
+
+
+func claim_seat(id: int) -> int:
+	return _slots.claim(id)
+
+
+func release_seat(id: int) -> void:
+	_slots.release(id)
+
+
+## Server: people (not bots) with a player in the match.
+func _spawned_people() -> int:
+	var n: int = 0
+	for p: Node in active_players():
+		if not ServerBots.is_bot(int(str(p.name))):
+			n += 1
+	return n
+
+
+## Server: the BotInput that flies a server bot. Games give theirs a smarter
+## pilot (it must read server state: nothing is drawn there).
+func _make_server_bot(player: Node) -> BotInput:
+	return BotInput.new(int(str(player.name)))
+
+
 ## Server: a player is about to be removed (left, or back to select).
 ## Subclasses can keep what should survive (space keeps the score).
 func _player_leaving(id: int, player: Node) -> void:
@@ -243,6 +281,8 @@ func _on_peer_disconnected(id: int) -> void:
 		# Removing the node is enough: the spawner replicates the despawn.
 		p.queue_free()
 	print("[server] peer %d left (%d in match)" % [id, _slots.count()])
+	if _slots.count() == bots.count() and bots.count() > 0:   # the last person left
+		bots.set_count(0)
 
 
 ## Players still in the match: excludes ones queue_free'd this frame.
@@ -263,6 +303,8 @@ func _spawn_from_data(data: Variant) -> Node:
 	var relay: InputRelay = p.get_node_or_null("InputRelay") as InputRelay
 	if relay != null:
 		relay.action = action_button()
+		if config.is_server and bool(d.get("bot", false)):
+			relay.server_bot = _make_server_bot(p)
 	return p
 
 

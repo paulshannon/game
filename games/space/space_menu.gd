@@ -43,7 +43,7 @@ func _ready() -> void:
 	root.add_child(center)
 	var column := VBoxContainer.new()
 	column.name = "Column"
-	column.add_theme_constant_override("separation", 28)
+	column.add_theme_constant_override("separation", 14)
 	center.add_child(column)
 
 	var title := Label.new()
