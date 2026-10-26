@@ -6,12 +6,12 @@
 
 **Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, and **colours are teams** (below); **auto** (the default) puts you on the team with the fewest ships. Your colour also tints your shots.
 
-**The star and energy:** a star sits at the centre of the map (`SpaceStar`, drawn in code by `SpaceStarView`).
-- **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`, capped at 400 px/s². At the spawn ring (900 px) it's a nudge (~90 px/s²); from ~425 px in it's the full 400, just under the weakest engine (the Gunship's 440), so every ship can always climb out at full throttle, slowly. Near the star energy recharges (40/s) faster than the main engine burns it (10/s), so you won't run dry climbing out; coasting in, though, ends in the star. Shots fly straight (they live under a second).
-- **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Nobody (re)spawns closer than 900 px (`SpaceStar.safe_spot`), and new rocks don't come in near it.
-- **Energy** (0–100, bar bottom-centre): recharges at 40/s within 400 px of the star, falling off as 1/distance beyond (20/s at 800, 4/s at 4000), never below 1.5/s. Main engine 10/s, brake 6/s and strafe 8/s at full push; 7 per shot. When the pool can't pay, the engines get only the power it can (none when empty) and the guns don't fire; turning is free. Respawning refills it. So the fight is a loop: dive in to recharge, climb out to fight.
+**The star and energy:** a star 450 px in radius sits at the centre of the map (`SpaceStar`, drawn in code by `SpaceStarView`).
+- **Gravity** pulls ships and rocks towards it: `GRAVITY / r²`. At the spawn ring (900 px from the centre) it's a nudge (~90 px/s²); at the surface it's ~355, under the weakest engine (the Gunship's 440), so every ship can always climb out at full throttle, slowly. (It's capped at 400 px/s², which only matters inside the star.) Near the star energy recharges (40/s) faster than the main engine burns it (10/s), so you won't run dry climbing out; coasting in, though, ends in the star. Shots fly straight (they live under a second).
+- **Touching it** destroys a ship outright (no shield or spawn protection helps) and burns up rocks and shots. Nobody (re)spawns closer than 900 px (`SpaceStar.safe_spot`), and ships (re)spawn on a circular orbit (`SpaceSim.respawn`), so one left idle goes round the star instead of falling in, and new rocks don't come in near it.
+- **Energy** (0–100, bar bottom-centre): recharges at 40/s within 500 px of the star's centre (just off its surface), falling off as 1/distance beyond (20/s at 1000, 5/s at 4000), never below 1.5/s. Main engine 10/s, brake 6/s and strafe 8/s at full push; 7 per shot. When the pool can't pay, the engines get only the power it can (none when empty) and the guns don't fire; turning is free. Respawning refills it. So the fight is a loop: dive in to recharge, climb out to fight.
 - **Rocks orbit** in belts (below), held by the same gravity. Pickups dropped by a rock orbit on from where it broke.
-- **Bots** head back to recharge below 30 energy, keep 5 spare when shooting, and fly straight out if they get within 500 px of the star.
+- **Bots** head back to recharge below 30 energy, keep 5 spare when shooting, and fly straight out if they get within 300 px of its surface. With no drag they steer their velocity: burn towards the speed they want (up to 380 px/s at a target, stopping 220 px off it), then coast.
 - The radar shows the star as an orange sun (on the rim when it's out of range): the way home to recharge.
 
 ![The star, falling rocks, the radar pointing home and the energy bar](../../docs/screenshots/space-star-energy.png)
@@ -33,14 +33,14 @@
 
 ![Picking a green Hornet on the menu](../../docs/screenshots/space-ship-picker.png)
 
-| Ship | Art | Thrust | Cruise speed | Turn | Fire every |
-|---|---|---|---|---|---|
-| **Falcon**: all-rounder | `playerShip1` | 560 | 1120 | 4.2 rad/s | 0.25 s |
-| **Comet**: fastest, slow to fire | `playerShip2` | 700 | 1400 | 3.8 rad/s | 0.32 s |
-| **Hornet**: turns tightest | `playerShip3` | 520 | 1040 | 5.6 rad/s | 0.22 s |
-| **Gunship**: fires fastest, heavy | `Enemies/enemy*2` (black for orange players) | 440 | 880 | 3.4 rad/s | 0.15 s |
+| Ship | Art | Thrust (px/s²) | Turn | Fire every |
+|---|---|---|---|---|
+| **Falcon**: all-rounder | `playerShip1` | 560 | 4.2 rad/s | 0.25 s |
+| **Comet**: fastest, slow to fire | `playerShip2` | 700 | 3.8 rad/s | 0.32 s |
+| **Hornet**: turns tightest | `playerShip3` | 520 | 5.6 rad/s | 0.22 s |
+| **Gunship**: fires fastest, heavy | `Enemies/enemy*2` (black for orange players) | 440 | 3.4 rad/s | 0.15 s |
 
-There's no speed cap: drag (0.5/s) is the only limit, so a ship levels off at thrust ÷ 0.5 (`SpaceSim.cruise_speed`) under full throttle, and gravity or strafing can take it past that.
+There's no drag and no speed cap: a ship coasts on for ever, and only its engines (brake, or turn round and burn) and gravity change its speed. Energy is what limits it: a full tank is 10 s of main engine.
 
 All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick travels in the join request (`GameBase.join_choice`, `{"hull", "color"}`): the server claims your seat when you connect, but spawns your ship only when the request arrives. `SpaceArena._sanitize_choice` rebuilds it from those two keys (hull clamped, auto or out-of-range colour → the seat's), so the spawn data carries `"hull"` and `"color"` and every peer builds the right ship from the first frame.
 
@@ -126,4 +126,4 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |
 | `starfield.gd` | client | procedural twinkling star field (menu background; parallax arena backdrop) |
 
-**Tuning:** feel constants (thrust, drag, cooldowns, points, pickup times) and the hull table (`HULLS`) are at the top of `space_sim.gd`; belt radii, widths, rock counts and sizes at the top of `space_belts.gd`; gravity and energy at the top of `space_star.gd`; the refill rate and pickup drop rate at the top of `space_director.gd`. To restyle the menu, change the sprite paths and 9-slice margins in `space_ui.gd`.
+**Tuning:** feel constants (thrust, cooldowns, points, pickup times) and the hull table (`HULLS`) are at the top of `space_sim.gd`; belt radii, widths, rock counts and sizes at the top of `space_belts.gd`; gravity and energy at the top of `space_star.gd`; the refill rate and pickup drop rate at the top of `space_director.gd`. To restyle the menu, change the sprite paths and 9-slice margins in `space_ui.gd`.

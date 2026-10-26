@@ -17,7 +17,9 @@ func test_gravity_points_at_the_star_and_falls_off_with_distance_squared() -> vo
 	var far: Vector2 = SpaceStar.pull(Vector2(2000, 0))
 	assert_true(near.x < 0.0 and absf(near.y) < 0.001, "towards the centre")
 	assert_near(near.length() / far.length(), 4.0, 0.01, "inverse square")
-	assert_near(SpaceStar.pull(Vector2(0, -95)).length(), SpaceStar.MAX_PULL, 0.01, "capped near the surface")
+	assert_near(SpaceStar.pull(Vector2(0, -95)).length(), SpaceStar.MAX_PULL, 0.01, "capped deep inside")
+	var surface: float = SpaceStar.pull(Vector2(SpaceStar.RADIUS + SpaceSim.SHIP_RADIUS, 0)).length()
+	assert_true(surface < 440.0, "the weakest engine (Gunship) still climbs out from the surface")
 	assert_eq(SpaceStar.pull(SpaceStar.CENTER), Vector2.ZERO)
 
 
@@ -30,7 +32,7 @@ func test_an_idle_ship_falls_in() -> void:
 
 func test_recharge_is_faster_nearer_the_star() -> void:
 	assert_near(SpaceStar.recharge_rate(Vector2(300, 0)), SpaceStar.RECHARGE_NEAR, 0.001, "full rate close in")
-	assert_near(SpaceStar.recharge_rate(Vector2(800, 0)), SpaceStar.RECHARGE_NEAR * 0.5, 0.001, "half at twice the distance")
+	assert_near(SpaceStar.recharge_rate(Vector2(SpaceStar.NEAR_RADIUS * 2.0, 0)), SpaceStar.RECHARGE_NEAR * 0.5, 0.001, "half at twice the distance")
 	assert_near(SpaceStar.recharge_rate(Vector2(1e6, 0)), SpaceStar.RECHARGE_MIN, 0.001, "never nothing")
 
 
@@ -73,6 +75,10 @@ func test_respawn_refills_and_safe_spot_keeps_clear_of_the_star() -> void:
 	assert_near(s.energy, SpaceStar.ENERGY_MAX, 0.001)
 	assert_near(SpaceStar.distance(s.position), SpaceStar.SAFE_RADIUS, 0.01)
 	assert_true(s.position.x > 0.0, "straight out the way it was")
+	assert_eq(s.velocity, SpaceStar.circular_velocity(s.position), "on a circular orbit")
+	for i: int in 10 * 60:
+		SpaceSim.step_ship(s, Vector2.ZERO, false, DT)
+	assert_near(SpaceStar.distance(s.position), SpaceStar.SAFE_RADIUS, 5.0, "an idle ship goes round, not in")
 	assert_eq(SpaceStar.safe_spot(Vector2(5000, 0)), Vector2(5000, 0), "already safe")
 	assert_near(SpaceStar.distance(SpaceStar.safe_spot(SpaceStar.CENTER)), SpaceStar.SAFE_RADIUS, 0.01)
 

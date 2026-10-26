@@ -7,8 +7,8 @@ extends Node2D
 
 const GLOW := Color(1.0, 0.62, 0.18)
 const CORE := Color(1.0, 0.96, 0.78)
-const LAYERS: int = 16   # many faint layers: a smooth falloff, no bands
-const GLOW_REACH: float = 3.2   # outermost glow, in star radii
+const LAYERS: int = 32   # many faint layers: a smooth falloff, no bands
+const GLOW_REACH: float = 1.8   # outermost glow, in star radii
 const DUST := Color(0.78, 0.66, 0.55, 0.035)
 const ARC_POINTS: int = 256
 

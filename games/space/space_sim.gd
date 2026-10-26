@@ -20,9 +20,8 @@ const THRUST: float = 560.0           # px/s² at full forward
 const REVERSE_THRUST: float = 240.0   # px/s² at full back (a brake, mostly)
 ## Sideways thrust (strafe), as a share of the hull's forward thrust.
 const STRAFE_FACTOR: float = 0.6
-## 1/s: coasting keeps momentum, but not forever. It's also the only speed
-## limit: a ship levels off where drag balances its thrust (cruise_speed).
-const DRAG: float = 0.5
+## There's no drag and no speed cap: a ship coasts on for ever, and only its
+## own engines (and the star's pull) change its speed.
 const SHIP_RADIUS: float = 18.0
 
 const RESPAWN_TIME: float = 2.0
@@ -124,13 +123,6 @@ static func set_hull(s: Ship, hull: int) -> void:
 	s.fire_cooldown = float(h["cooldown"])
 
 
-## The speed a ship levels off at under full forward thrust and nothing
-## else: drag (DRAG * v) balances thrust. There's no hard cap; gravity,
-## strafing and the momentum it carries in can take it past this.
-static func cruise_speed(thrust: float) -> float:
-	return thrust / DRAG
-
-
 static func facing(s: Ship) -> Vector2:
 	return Vector2.from_angle(s.rotation)
 
@@ -173,7 +165,6 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float, strafe: 
 	# Right of the nose: facing turned a quarter clockwise (y is down).
 	s.velocity += facing(s).rotated(PI / 2.0) * side * s.thrust * STRAFE_FACTOR * delta
 	s.velocity += SpaceStar.pull(s.position) * delta
-	s.velocity *= exp(-DRAG * delta)
 	s.position += s.velocity * delta
 
 	if fire and s.cooldown <= 0.0 and s.energy >= SpaceStar.SHOT_COST:
@@ -199,10 +190,12 @@ static func can_respawn(s: Ship) -> bool:
 	return not s.alive and s.respawn_in <= 0.0
 
 
+## Back in at `at`, already on a circular orbit round the star: with no drag,
+## a ship left at rest would fall straight in.
 static func respawn(s: Ship, at: Vector2) -> void:
 	s.alive = true
 	s.position = at
-	s.velocity = Vector2.ZERO
+	s.velocity = SpaceStar.circular_velocity(at)
 	s.rotation = -PI / 2.0
 	s.protected_for = SPAWN_PROTECTION
 	s.shield = false

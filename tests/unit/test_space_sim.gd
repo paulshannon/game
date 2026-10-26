@@ -39,18 +39,16 @@ func test_momentum_carries_on_after_thrust() -> void:
 	_run(s, Vector2.ZERO, 0.5)
 	assert_false(s.thrusting)
 	assert_true(s.position.x > x + 50.0, "keeps drifting without thrust")
-	assert_true(s.velocity.length() < speed, "drag slows it a little")
-	assert_true(s.velocity.length() > speed * 0.6, "but keeps most of its momentum")
+	assert_near(s.velocity.length(), speed, speed * 0.01, "no drag: only the star's faint pull")
 
 
-func test_no_speed_cap_drag_levels_it_off() -> void:
+func test_no_drag_and_no_speed_cap() -> void:
 	var s := _ship()
 	for i: int in 20 * 60:
-		s.energy = SpaceStar.ENERGY_MAX   # this is about drag, not the tank
+		s.energy = SpaceStar.ENERGY_MAX   # this is about speed, not the tank
 		SpaceSim.step_ship(s, Vector2.UP, false, DT)
-	var cruise: float = SpaceSim.cruise_speed(SpaceSim.THRUST)
-	assert_near(s.velocity.length(), cruise, cruise * 0.01, "where drag balances thrust")
-	assert_true(s.velocity.length() > 1000.0, "well past the old 440 cap")
+	var expected: float = SpaceSim.THRUST * 20.0
+	assert_near(s.velocity.length(), expected, expected * 0.05, "keeps speeding up under thrust")
 
 
 func test_turning_rotates_without_moving() -> void:
@@ -154,10 +152,9 @@ func test_overlap() -> void:
 
 
 func test_fast_shot_cannot_step_over_a_small_rock() -> void:
-	# One tick of a shot from the fastest ship at cruise speed (~37 px),
-	# passing a small rock 15 px off-centre: both end points miss, the path
-	# doesn't.
-	var step: float = (SpaceSim.SHOT_SPEED + SpaceSim.cruise_speed(700.0)) * DT
+	# One tick of a shot from a ship doing 1400 px/s (~37 px), passing a
+	# small rock 15 px off-centre: both end points miss, the path doesn't.
+	var step: float = (SpaceSim.SHOT_SPEED + 1400.0) * DT
 	var from := Vector2(-step * 0.5, 15)
 	var to := from + Vector2(step, 0)
 	var r: float = SpaceSim.asteroid_radius(SpaceSim.SMALL)
@@ -314,7 +311,7 @@ func test_strafe_is_weaker_than_thrust_and_capped() -> void:
 	assert_eq(side.strafing, 0, "a non-finite strafe is ignored")
 	for i: int in 1200:
 		SpaceSim.step_ship(side, Vector2.UP, false, DT, 1.0)
-	# Thrust and strafe together push sqrt(1 + 0.6²) times as hard; drag
-	# still levels that off.
-	var limit: float = SpaceSim.cruise_speed(side.thrust) * sqrt(1.0 + SpaceSim.STRAFE_FACTOR * SpaceSim.STRAFE_FACTOR)
-	assert_true(side.velocity.length() <= limit * 1.001, "drag bounds thrust + strafe too")
+	# Thrust and strafe together push sqrt(1 + 0.6²) times as hard, for at
+	# most the 1230 ticks either was on (and the tank runs dry well before).
+	var limit: float = side.thrust * sqrt(1.0 + SpaceSim.STRAFE_FACTOR * SpaceSim.STRAFE_FACTOR) * 1230.0 * DT
+	assert_true(side.velocity.length() <= limit * 1.001, "never more than thrust + strafe")
