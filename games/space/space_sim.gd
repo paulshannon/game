@@ -13,6 +13,7 @@ extends RefCounted
 
 # --- ships --------------------------------------------------------------------
 
+# The all-rounder's handling (hull FALCON); the other hulls trade these off.
 const TURN_SPEED: float = 4.2         # rad/s at full left/right
 const THRUST: float = 560.0           # px/s² at full forward
 const REVERSE_THRUST: float = 240.0   # px/s² at full back (a brake, mostly)
@@ -26,12 +27,31 @@ const SHIELD_GRACE: float = 1.0       # invulnerable after the shield absorbs a 
 
 # --- shots --------------------------------------------------------------------
 
-const FIRE_COOLDOWN: float = 0.25
+const FIRE_COOLDOWN: float = 0.25    # the all-rounder's; see HULLS
 const RAPID_COOLDOWN: float = 0.1
 const SHOT_SPEED: float = 820.0
 const SHOT_LIFE: float = 0.9
 const SHOT_RADIUS: float = 4.0
 const MUZZLE: float = 26.0            # shots start this far ahead of the ship
+
+# --- hulls: the ship a player picks when joining -----------------------------
+
+const FALCON: int = 0
+const COMET: int = 1
+const HORNET: int = 2
+const GUNSHIP: int = 3
+## By hull: name and one line for the menu, and handling. Collision size and
+## shots are the same for every hull, so none is harder to hit.
+const HULLS: Array[Dictionary] = [
+	{"name": "Falcon", "blurb": "All-rounder", "thrust": THRUST, "max_speed": MAX_SPEED,
+		"turn": TURN_SPEED, "cooldown": FIRE_COOLDOWN},
+	{"name": "Comet", "blurb": "Fastest, slow to fire", "thrust": 700.0, "max_speed": 540.0,
+		"turn": 3.8, "cooldown": 0.32},
+	{"name": "Hornet", "blurb": "Turns tightest", "thrust": 520.0, "max_speed": 420.0,
+		"turn": 5.6, "cooldown": 0.22},
+	{"name": "Gunship", "blurb": "Fires fastest, heavy", "thrust": 440.0, "max_speed": 360.0,
+		"turn": 3.4, "cooldown": 0.15},
+]
 
 # --- asteroids ----------------------------------------------------------------
 
@@ -56,6 +76,12 @@ const PICKUP_LIFE: float = 12.0
 
 
 class Ship:
+	## Which of HULLS (set_hull), and its handling.
+	var hull: int = FALCON
+	var thrust: float = THRUST
+	var max_speed: float = MAX_SPEED
+	var turn_speed: float = TURN_SPEED
+	var fire_cooldown: float = FIRE_COOLDOWN
 	var position: Vector2 = Vector2.ZERO
 	var velocity: Vector2 = Vector2.ZERO
 	## Facing angle; 0 points along +x, like Vector2.angle().
@@ -74,6 +100,20 @@ class Ship:
 	var score: int = 0
 
 
+## A valid hull for any value a client sends.
+static func sanitize_hull(hull: int) -> int:
+	return clampi(hull, 0, HULLS.size() - 1)
+
+
+static func set_hull(s: Ship, hull: int) -> void:
+	s.hull = sanitize_hull(hull)
+	var h: Dictionary = HULLS[s.hull]
+	s.thrust = float(h["thrust"])
+	s.max_speed = float(h["max_speed"])
+	s.turn_speed = float(h["turn"])
+	s.fire_cooldown = float(h["cooldown"])
+
+
 static func facing(s: Ship) -> Vector2:
 	return Vector2.from_angle(s.rotation)
 
@@ -90,18 +130,18 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
 		return false
 
 	var m: Vector2 = ArenaSim.sanitize_move(move)
-	s.rotation = wrapf(s.rotation + m.x * TURN_SPEED * delta, -PI, PI)
+	s.rotation = wrapf(s.rotation + m.x * s.turn_speed * delta, -PI, PI)
 	var push: float = -m.y
 	s.thrusting = push > 0.1
 	s.braking = push < -0.1
 	s.turning = 0 if absf(m.x) < 0.1 else (1 if m.x > 0.0 else -1)
-	var accel: float = THRUST if push > 0.0 else REVERSE_THRUST
+	var accel: float = s.thrust if push > 0.0 else REVERSE_THRUST
 	s.velocity += facing(s) * push * accel * delta
-	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(MAX_SPEED)
+	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(s.max_speed)
 	s.position += s.velocity * delta
 
 	if fire and s.cooldown <= 0.0:
-		s.cooldown = RAPID_COOLDOWN if s.rapid_for > 0.0 else FIRE_COOLDOWN
+		s.cooldown = minf(RAPID_COOLDOWN, s.fire_cooldown) if s.rapid_for > 0.0 else s.fire_cooldown
 		return true
 	return false
 

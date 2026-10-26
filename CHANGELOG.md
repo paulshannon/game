@@ -11,6 +11,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
 
 ### Added
+- **Space: four ships** (#31): pick Falcon (all-rounder), Comet (fastest), Hornet (tightest turns) or Gunship (fastest guns) on the menu before Play; the pick is remembered. Generic piece for other games: a client sends `GameBase.join_choice` when it connects, and the server spawns its player with it once that arrives.
 - **Space: first real gameplay** (#16): co-op asteroid shooting with momentum ships, asteroids that split, pickups (rapid fire, shield, star) and per-player score, all server-authoritative. Uses Kenney's Space Shooter Redux + Extension art and Sci-fi Sounds + Digital Audio. The smoke test proves that shots, hits and scores work over the network.
 - `fire` input action (Space) and a touch **Fire** button. Games choose their action with `GameBase.action_button()` (which replaces `uses_jump()`); only that button is sent, and a key still held from the menu's Play button is ignored until released.
 - **Space: RCS thrusters** (#24): braking fires puffs forward from the nose, and turning fires a nose and a wingtip thruster on opposite sides, drawn in step with the ship like the main flame.

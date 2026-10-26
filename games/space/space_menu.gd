@@ -1,8 +1,8 @@
 class_name SpaceMenu
 extends GameMenu
 ## Main menu for the space game: star field, title, and a Kenney sci-fi panel
-## with Play, Controls (remapping, ControlsEditor) and Quit (outside the
-## browser, where quitting means nothing). After a lost connection main.gd
+## with the ship picker, Play, Controls (remapping, ControlsEditor) and Quit
+## (outside the browser, where quitting means nothing). After a lost connection main.gd
 ## shows it again with the reason and "Rejoin" / "Try again" on Play.
 
 var _play: Button
@@ -14,6 +14,13 @@ var _title: Label
 var _credit: Label
 var _control_names: Dictionary
 var _touch_help: String
+var _hull: int = SpaceSim.FALCON
+var _ship_art: TextureRect
+var _ship_name: Label
+var _ship_blurb: Label
+
+## The picked hull is remembered here between sessions.
+const SAVE_PATH: String = "user://space.cfg"
 
 
 ## `control_names`: action -> label for the Controls page
@@ -84,12 +91,101 @@ func _build_panel() -> PanelContainer:
 	_status.visible = false
 	box.add_child(_status)
 
+	box.add_child(_build_ship_picker())
 	_play = _button("Play", request_play)
 	box.add_child(_play)
 	box.add_child(_button("Controls", show_controls))
 	if not OS.has_feature("web"):  # a browser tab can't quit itself
 		box.add_child(_button("Quit", func() -> void: get_tree().quit()))
 	return panel
+
+
+## Arrows either side of the ship. Left/Right (keys, D-pad, stick) also pick,
+## so Play can keep the focus.
+func _build_ship_picker() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "Ship"
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 12)
+	row.add_child(_arrow("<", -1))
+
+	var middle := VBoxContainer.new()
+	middle.custom_minimum_size = Vector2(220, 0)
+	middle.add_theme_constant_override("separation", 4)
+	row.add_child(middle)
+	_ship_art = TextureRect.new()
+	_ship_art.name = "Art"
+	_ship_art.custom_minimum_size = Vector2(0, 90)
+	_ship_art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_ship_art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	middle.add_child(_ship_art)
+	_ship_name = Label.new()
+	_ship_name.name = "Name"
+	_ship_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	middle.add_child(_ship_name)
+	_ship_blurb = Label.new()
+	_ship_blurb.name = "Blurb"
+	_ship_blurb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ship_blurb.add_theme_font_size_override("font_size", 14)
+	_ship_blurb.add_theme_color_override("font_color", Color(SpaceUi.INK, 0.75))
+	middle.add_child(_ship_blurb)
+
+	row.add_child(_arrow(">", 1))
+	_load_hull()
+	_show_hull()
+	return row
+
+
+func _arrow(text: String, step: int) -> Button:
+	var b := Button.new()
+	b.name = "Prev" if step < 0 else "Next"
+	b.text = text
+	b.custom_minimum_size = Vector2(56, 56)
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# Kenney Future has no < or >: the engine's default font does.
+	b.add_theme_font_override("font", ThemeDB.fallback_font)
+	b.add_theme_font_size_override("font_size", 30)
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(pick_hull.bind(step))
+	return b
+
+
+## Step through the hulls (wrapping round) and remember the pick.
+func pick_hull(step: int) -> void:
+	_hull = posmod(_hull + step, SpaceSim.HULLS.size())
+	_show_hull()
+	var cfg := ConfigFile.new()
+	cfg.set_value("ship", "hull", _hull)
+	cfg.save(SAVE_PATH)
+
+
+func choice() -> int:
+	return _hull
+
+
+func _load_hull() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) == OK:
+		_hull = SpaceSim.sanitize_hull(int(cfg.get_value("ship", "hull", SpaceSim.FALCON)))
+
+
+func _show_hull() -> void:
+	var h: Dictionary = SpaceSim.HULLS[_hull]
+	_ship_art.texture = load(SpaceShip.hull_texture(_hull, "blue")) as Texture2D
+	_ship_art.flip_v = SpaceShip.hull_points_down(_hull)
+	_ship_name.text = "%s  (%d/%d)" % [h["name"], _hull + 1, SpaceSim.HULLS.size()]
+	_ship_blurb.text = str(h["blurb"])
+
+
+func _input(event: InputEvent) -> void:
+	if not visible or _main_panel == null or not _main_panel.visible:
+		return
+	if event.is_action_pressed("ui_left"):
+		pick_hull(-1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_right"):
+		pick_hull(1)
+		get_viewport().set_input_as_handled()
 
 
 ## The Controls page: a second panel in place of the main one, so the title

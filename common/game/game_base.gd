@@ -11,11 +11,18 @@ extends Node
 ##     (world nodes added by subclass)
 
 var config: LaunchConfig
+## Client: what the player picked before joining (e.g. the ship in space), set
+## by main.gd before connecting. Sent to the server, which sanitizes it
+## (_sanitize_choice) and puts it in the spawn data as "choice".
+var join_choice: int = 0
 
 var players_root: Node
 var spawner: MultiplayerSpawner
 
 var _slots := PlayerSlots.new()
+## Server: peers holding a slot whose player isn't spawned yet (waiting for
+## their join request).
+var _awaiting: Dictionary = {}   # peer id -> true
 
 # Smoke-test bookkeeping. The per-frame client part only runs during a smoke
 # run (config.run_seconds > 0), off the web main thread in normal play.
@@ -41,7 +48,13 @@ func _ready() -> void:
 	add_child(spawner)
 
 	if not config.is_server:
+		multiplayer.connected_to_server.connect(_send_join)
 		_build_client_world()
+
+
+## Client, once connected: ask the server to spawn our player.
+func _send_join() -> void:
+	_request_spawn.rpc_id(1, join_choice)
 
 
 ## Called by Main after the WebSocket server is listening.
@@ -116,6 +129,18 @@ func make_menu() -> GameMenu:
 	return null
 
 
+## What a bot picks for join_choice (smoke tests). Any value is fine: the
+## server sanitizes it.
+func bot_choice() -> int:
+	return 0
+
+
+## Server: turn a client's join_choice into a valid one. Clients can send
+## anything.
+func _sanitize_choice(_choice: int) -> int:
+	return 0
+
+
 func _spawn_position(_index: int) -> Variant:
 	return null
 
@@ -127,15 +152,31 @@ func _create_player(_data: Dictionary) -> Node:
 
 # --- server -------------------------------------------------------------------
 
+## The seat is claimed now (a full match turns the peer away at once), but
+## the player only spawns when the client's join request arrives with its
+## choice, so the spawn data is complete from the first frame.
 func _on_peer_connected(id: int) -> void:
 	var index: int = _slots.claim(id)
 	if index == -1:
 		print("[server] rejecting peer %d: match full" % id)
 		multiplayer.multiplayer_peer.disconnect_peer(id)
 		return
+	_awaiting[id] = true
+
+
+@rpc("any_peer", "call_remote", "reliable", 0)
+func _request_spawn(choice: int) -> void:
+	if not config.is_server:
+		return
+	var id: int = multiplayer.get_remote_sender_id()
+	if not _awaiting.has(id):   # unknown peer, or already spawned
+		return
+	_awaiting.erase(id)
+	var index: int = _slots.claim(id)
 	# Golden-ratio hue spacing gives distinct colors for any player count.
 	var hue: float = fmod(index * 0.61803398875, 1.0)
-	spawner.spawn({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)})
+	spawner.spawn({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index),
+			"choice": _sanitize_choice(choice)})
 	_peers_seen[id] = true
 	_max_simultaneous = maxi(_max_simultaneous, _slots.count())
 	print("[server] peer %d joined slot %d (%d in match)" % [id, index, _slots.count()])
@@ -143,6 +184,7 @@ func _on_peer_connected(id: int) -> void:
 
 func _on_peer_disconnected(id: int) -> void:
 	_slots.release(id)
+	_awaiting.erase(id)
 	var p: Node = players_root.get_node_or_null(str(id))
 	if p != null:
 		_final_travel[id] = float(p.get("traveled"))

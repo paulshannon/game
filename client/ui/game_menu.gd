@@ -31,6 +31,11 @@ func request_play() -> void:
 	play_requested.emit()
 
 
+## What the player picked to join with (GameBase.join_choice), e.g. a ship.
+func choice() -> int:
+	return 0
+
+
 ## Subclass hook: update the status line and Play label.
 func _apply(_status: String, _play_text: String) -> void:
 	pass

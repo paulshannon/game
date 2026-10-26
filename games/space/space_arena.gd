@@ -30,6 +30,9 @@ var _stars: Starfield
 var _best_own_score: int = 0
 var _best_score_seen: int = 0
 var _own_rcs_frames: int = 0
+var _own_hull: int = -1
+# Smoke test (server): hull each player spawned with, by peer id.
+var _hulls: Dictionary = {}
 
 
 func _ready() -> void:
@@ -101,6 +104,15 @@ func control_names() -> Dictionary:
 	}
 
 
+## Bots fly a random hull, so smoke runs cover them all over time.
+func bot_choice() -> int:
+	return randi_range(0, SpaceSim.HULLS.size() - 1)
+
+
+func _sanitize_choice(choice: int) -> int:
+	return SpaceSim.sanitize_hull(choice)
+
+
 ## Around the origin at the start; once people have flown off, a newcomer
 ## joins them instead (round the first ship still in the match).
 func _spawn_position(index: int) -> Variant:
@@ -116,6 +128,8 @@ func _spawn_position(index: int) -> Variant:
 func _create_player(data: Dictionary) -> Node:
 	var p := SpaceShip.new()
 	p.setup(data, config.is_server, config.bot, self)
+	if config.is_server:
+		_hulls[int(data["id"])] = p.hull()
 	return p
 
 
@@ -147,12 +161,13 @@ func _process(delta: float) -> void:
 		if ship == own:
 			_best_own_score = maxi(_best_own_score, ship.score)
 			_own_rcs_frames = maxi(_own_rcs_frames, ship.rcs_frames)
+			_own_hull = ship.hull()
 
 
 ## On top of "everyone moved": the server saw every player shoot and rocks
 ## destroyed; each client drew its own shots, drew an asteroid explode, drew
 ## its own ship's RCS thrusters (bots turn constantly), and received a score
-## from the server. Any ship's score counts, not only its
+## from the server, and its own ship is the hull it asked for. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
 ## may spend 2 s of it dead), and the replication path is the same.
 func smoke_report() -> Dictionary:
@@ -166,12 +181,14 @@ func smoke_report() -> Dictionary:
 		report["ships_destroyed"] = director.ships_destroyed
 		report["pickups_taken"] = director.pickups_taken
 		report["scores"] = director.scores
+		report["hulls"] = _hulls
 		return report
 	report["own_shots_seen"] = fx.own_shots_seen
 	report["explosions_seen"] = fx.explosions_seen
 	report["own_score"] = _best_own_score
 	report["own_rcs_frames"] = _own_rcs_frames
 	report["best_score_seen"] = _best_score_seen
+	report["hull"] = {"asked": join_choice, "got": _own_hull}
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
-			and _best_score_seen > 0 and _own_rcs_frames > 0
+			and _best_score_seen > 0 and _own_rcs_frames > 0 and _own_hull == join_choice
 	return report
