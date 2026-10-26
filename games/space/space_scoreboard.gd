@@ -1,6 +1,7 @@
 class_name SpaceScoreboard
 extends CanvasLayer
-## Client: every ship's score, top-right, highest first, in the ship's colour.
+## Client: scores top-right, by team (colours are teams): each team's total,
+## best team first, then its ships, highest first, in the team's colour.
 ## Reads the replicated SpaceShip.score; never computes a score itself.
 
 const SHIP_COLORS: Dictionary = {
@@ -34,30 +35,56 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if players_root == null:
 		return
-	var rows: Array[SpaceShip] = []
+	var teams: Dictionary = {}   # colour index -> Array[SpaceShip]
 	for p: Node in players_root.get_children():
 		var ship: SpaceShip = p as SpaceShip
 		if ship != null and not ship.is_queued_for_deletion():
-			rows.append(ship)
-	rows.sort_custom(func(a: SpaceShip, b: SpaceShip) -> bool:
-		return a.score > b.score or (a.score == b.score and a.player_index() < b.player_index()))
+			if not teams.has(ship.color_index()):
+				teams[ship.color_index()] = [] as Array[SpaceShip]
+			(teams[ship.color_index()] as Array[SpaceShip]).append(ship)
+	var order: Array = teams.keys()
+	order.sort_custom(func(a: int, b: int) -> bool:
+		var ta: int = team_total(teams[a])
+		var tb: int = team_total(teams[b])
+		return ta > tb or (ta == tb and a < b))
 	var me: int = multiplayer.get_unique_id() if Net.is_online() else 0
 	var key: String = ""
-	for ship: SpaceShip in rows:
-		key += "%d:%d:%d;" % [ship.player_index(), ship.score, int(ship.peer_id() == me)]
+	for t: int in order:
+		for ship: SpaceShip in teams[t]:
+			key += "%d:%d:%d:%d;" % [t, ship.player_index(), ship.score, int(ship.peer_id() == me)]
 	if key == _shown:
 		return
 	_shown = key
 	for c: Node in _list.get_children():
 		c.queue_free()
-	for ship: SpaceShip in rows:
-		var l := Label.new()
-		var you: String = "  (you)" if ship.peer_id() == me else ("  bot" if ship.is_bot() else "")
-		l.text = "P%d%s   %d" % [ship.player_index() + 1, you, ship.score]
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		l.add_theme_font_override("font", SpaceUi.font())
-		l.add_theme_font_size_override("font_size", 22 if ship.peer_id() == me else 18)
-		l.add_theme_color_override("font_color", SHIP_COLORS.get(ship.color_name(), Color.WHITE))
-		l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
-		l.add_theme_constant_override("outline_size", 4)
-		_list.add_child(l)
+	for t: int in order:
+		var members: Array[SpaceShip] = teams[t]
+		members.sort_custom(func(a: SpaceShip, b: SpaceShip) -> bool:
+			return a.score > b.score or (a.score == b.score and a.player_index() < b.player_index()))
+		var color: Color = SHIP_COLORS.get(SpaceShip.COLORS[t], Color.WHITE)
+		_add_row("%s team   %d" % [SpaceShip.COLORS[t], team_total(members)], color, 20)
+		for ship: SpaceShip in members:
+			var mine: bool = ship.peer_id() == me
+			var tag: String = "  (you)" if mine else ("  bot" if ship.is_bot() else "")
+			_add_row("P%d%s   %d" % [ship.player_index() + 1, tag, ship.score], Color(color, 0.85),
+					18 if mine else 15)
+
+
+static func team_total(members: Array) -> int:
+	var total: int = 0
+	for ship: SpaceShip in members:
+		total += ship.score
+	return total
+
+
+func _add_row(text: String, color: Color, size: int) -> void:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.add_theme_font_override("font", SpaceUi.font())
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	l.add_theme_constant_override("outline_size", 4)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_list.add_child(l)

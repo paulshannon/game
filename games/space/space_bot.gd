@@ -1,13 +1,17 @@
 class_name SpaceBot
 extends BotInput
-## Smoke-test pilot for the space game: turns toward the nearest asteroid it
-## can see, thrusts when far, brakes when close, and fires when lined up. So
-## the bots really shoot rocks and score over the network, proving the whole
-## loop (input -> server rules -> spawns/despawns/score -> client).
+## Pilot for the space game's bots: turns toward the nearest enemy ship close
+## by (another team), or else the nearest asteroid it can see; thrusts when
+## far, brakes when close, and fires when lined up. So the bots really shoot
+## rocks and each other and score over the network, proving the whole loop
+## (input -> server rules -> spawns/despawns/score -> client).
 ## On a client (smoke-test bots) it sees only what that client draws, like a
 ## player. The server flies its own bots (ServerBots) with it too: there it
 ## reads the rocks' positions at the current server time. Wanders when there
 ## is nothing to aim at.
+
+## Enemy ships closer than this are attacked before rocks.
+const ENGAGE_RANGE: float = 500.0
 
 var _ship: SpaceShip
 var _arena: SpaceArena
@@ -20,12 +24,20 @@ func _init(ship: SpaceShip, arena: SpaceArena) -> void:
 
 
 func update(delta: float) -> void:
-	var target: SpaceEntity = _nearest_asteroid()
-	if target == null or not _ship.is_alive():
+	if not _ship.is_alive():
 		super.update(delta)
 		fire = false
 		return
-	var to: Vector2 = _where(target) - _ship.position
+	# An enemy ship close by comes first (PvP); otherwise the nearest rock.
+	var aim: Variant = _nearest_enemy()
+	if aim == null:
+		var rock: SpaceEntity = _nearest_asteroid()
+		if rock == null:
+			super.update(delta)
+			fire = false
+			return
+		aim = _where(rock)
+	var to: Vector2 = (aim as Vector2) - _ship.position
 	var off: float = angle_difference(_ship.rendered_rotation(), to.angle())
 	var dist: float = to.length()
 	move.x = clampf(off * 3.0, -1.0, 1.0)
@@ -37,6 +49,23 @@ func update(delta: float) -> void:
 		move.y = -0.2
 	fire = absf(off) < 0.3 and dist < 700.0
 	jump = false
+
+
+## Where the nearest enemy ship within ENGAGE_RANGE is (another team, alive,
+## not protected), or null.
+func _nearest_enemy() -> Variant:
+	var best: Variant = null
+	var best_d: float = ENGAGE_RANGE * ENGAGE_RANGE
+	for p: Node in _arena.active_players():
+		var other: SpaceShip = p as SpaceShip
+		if other == null or other == _ship or other.color_index() == _ship.color_index() \
+				or not other.is_alive() or other.is_protected():
+			continue
+		var d: float = other.position.distance_squared_to(_ship.position)
+		if d < best_d:
+			best_d = d
+			best = other.position
+	return best
 
 
 func _nearest_asteroid() -> SpaceEntity:

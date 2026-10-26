@@ -3,7 +3,8 @@ extends Node
 ## Server only: runs the space match around the ships. Keeps the unbounded
 ## asteroid field topped up around every ship and removes rocks left far
 ## behind (SpaceField), turns ship shots into SHOT entities, and resolves every
-## collision (shot/asteroid, ship/asteroid, ship/pickup) with SpaceSim rules.
+## collision (shot/asteroid, shot/ship of another team, ship/asteroid,
+## ship/pickup) with SpaceSim rules.
 ## Clients never decide a hit or a score; they only see the results as
 ## spawns, despawns and replicated ship state.
 ##
@@ -24,6 +25,8 @@ var shots_fired: Dictionary = {}      # peer id -> shots
 var asteroids_destroyed: int = 0
 var asteroids_dropped: int = 0        # left far behind (SpaceField.is_stray)
 var ships_destroyed: int = 0
+var pvp_hits: int = 0                 # shots that hit a ship (shield or not)
+var pvp_kills: int = 0
 var pickups_taken: int = 0
 ## Peer id -> score, latched as it changes so it outlives the player leaving.
 var scores: Dictionary = {}
@@ -81,6 +84,7 @@ func _physics_process(delta: float) -> void:
 
 	_tend_field(rocks, now, delta)
 
+	var ships: Array[SpaceShip] = _ships()
 	for shot: SpaceEntity in shots:
 		# Swept: the whole path the shot covered this tick (~15-20 px, more
 		# than a small rock's hit radius), not just where it ended up.
@@ -93,10 +97,19 @@ func _physics_process(delta: float) -> void:
 				_destroy_asteroid(rock, now, _ship_of(shot.owner_peer))
 				shot.queue_free()
 				break
+		if not shot.is_queued_for_deletion():
+			for ship: SpaceShip in ships:
+				# A shot's variant is its shooter's team (colour), which
+				# outlives the shooter leaving.
+				if SpaceSim.shot_can_hit(shot.variant, ship.state) and SpaceSim.sweep_hits(from, to,
+						SpaceSim.SHOT_RADIUS, ship.state.position, SpaceSim.SHIP_RADIUS):
+					_shoot_ship(ship, _ship_of(shot.owner_peer))
+					shot.queue_free()
+					break
 		if not shot.is_queued_for_deletion() and SpaceSim.shot_expired(age):
 			shot.queue_free()
 
-	for ship: SpaceShip in _ships():
+	for ship: SpaceShip in ships:
 		var s: SpaceSim.Ship = ship.state
 		if not s.alive:
 			continue
@@ -120,6 +133,21 @@ func _physics_process(delta: float) -> void:
 	for pickup: SpaceEntity in pickups:
 		if not pickup.is_queued_for_deletion() and pickup.age(now) >= SpaceSim.PICKUP_LIFE:
 			pickup.queue_free()
+
+
+## PvP: the shield takes the hit, or the ship is destroyed and `shooter`
+## (null if they left) scores.
+func _shoot_ship(ship: SpaceShip, shooter: SpaceShip) -> void:
+	pvp_hits += 1
+	if not SpaceSim.hit_ship(ship.state):
+		return
+	ships_destroyed += 1
+	pvp_kills += 1
+	if shooter != null:
+		shooter.state.score += SpaceSim.SHIP_KILL_POINTS
+		scores[shooter.peer_id()] = shooter.state.score
+	print("[server] P%d shot down P%d" % [shooter.player_index() + 1 if shooter != null else 0,
+			ship.player_index() + 1])
 
 
 ## Score it to `scorer` (null for a ram), split it, maybe drop a pickup.

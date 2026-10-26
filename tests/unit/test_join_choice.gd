@@ -13,15 +13,30 @@ func test_choice_int_reads_numbers_only() -> void:
 	assert_eq(GameBase.choice_int({"k": INF}, "k", 7), 7)
 
 
-func _space(choice: Dictionary, index: int) -> Dictionary:
+func _space(choice: Dictionary, index: int, teams: Array[int] = []) -> Dictionary:
 	var arena := SpaceArena.new()
+	arena.players_root = Node.new()
+	for i: int in teams.size():   # ships already in the match, by colour
+		var ship := SpaceShip.new()
+		ship.setup({"id": 100 + i, "index": i, "hue": 0.0, "pos": Vector2.ZERO, "color": teams[i]},
+				true, false, arena)
+		ship.name = str(100 + i)
+		arena.players_root.add_child(ship)
 	var out: Dictionary = arena._sanitize_choice(choice, index)
+	arena.players_root.free()
 	arena.free()
 	return out
 
 
 func test_space_keeps_a_valid_pick() -> void:
 	assert_eq(_space({"hull": SpaceSim.HORNET, "color": 3}, 0), {"hull": SpaceSim.HORNET, "color": 3})
+
+
+func test_space_auto_joins_the_smallest_team() -> void:
+	assert_eq(_space({"color": SpaceShip.COLOR_AUTO}, 3, [0, 0, 1, 2])["color"], 3, "red is empty")
+	assert_eq(_space({"color": SpaceShip.COLOR_AUTO}, 0, [0, 1, 1, 2, 2, 3, 3])["color"], 0,
+			"blue has one, the others two")
+	assert_eq(_space({"color": 2}, 0, [2, 2, 2])["color"], 2, "a picked team is kept, even if big")
 
 
 func test_space_auto_colour_is_the_seats() -> void:

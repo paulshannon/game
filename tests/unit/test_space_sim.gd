@@ -268,3 +268,31 @@ func test_rapid_fire_never_slows_a_hull_down() -> void:
 	SpaceSim.apply_pickup(s, SpaceSim.RAPID)
 	assert_true(SpaceSim.step_ship(s, Vector2.ZERO, true, DT))
 	assert_near(s.cooldown, minf(SpaceSim.RAPID_COOLDOWN, s.fire_cooldown), 0.001)
+
+
+# --- teams and PvP ------------------------------------------------------------
+
+func test_shots_hit_other_teams_only() -> void:
+	var target := _ship()
+	target.team = 1
+	assert_true(SpaceSim.shot_can_hit(0, target), "another team")
+	assert_false(SpaceSim.shot_can_hit(1, target), "no friendly fire")
+	target.protected_for = 1.0
+	assert_false(SpaceSim.shot_can_hit(0, target), "spawn protection: shots fly through")
+	target.protected_for = 0.0
+	target.alive = false
+	assert_false(SpaceSim.shot_can_hit(0, target), "not a wreck")
+
+
+func test_a_shield_takes_a_shot() -> void:
+	var target := _ship()
+	target.shield = true
+	assert_false(SpaceSim.hit_ship(target), "shield absorbs it")
+	assert_true(target.alive)
+	assert_false(SpaceSim.shot_can_hit(1, target), "then a moment of grace")
+
+
+func test_smallest_team_prefers_the_seat_on_a_tie() -> void:
+	assert_eq(SpaceSim.smallest_team([0, 0, 0, 0] as Array[int], 2), 2)
+	assert_eq(SpaceSim.smallest_team([1, 0, 0, 1] as Array[int], 3), 1, "next empty one after the seat's")
+	assert_eq(SpaceSim.smallest_team([2, 1, 2, 2] as Array[int], 6), 1)

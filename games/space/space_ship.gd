@@ -103,6 +103,7 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
 	SpaceSim.set_hull(state, int(data.get("hull", SpaceSim.FALCON)))
 	_color = int(data.get("color", _net.player_index)) % COLORS.size()
+	state.team = _color
 	SpaceSim.respawn(state, data["pos"])
 	net_position = state.position
 	net_rotation = state.rotation
@@ -145,6 +146,11 @@ func is_alive() -> bool:
 
 func _shown_flags() -> int:
 	return flags if _net.server_side else _flag_timeline.current()
+
+
+## Spawn protection (blinking): shots fly through. As drawn on a client.
+func is_protected() -> bool:
+	return _shown_flags() & PROTECTED != 0
 
 
 ## Client: the facing being drawn (what the player sees).
