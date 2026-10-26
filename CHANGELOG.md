@@ -22,6 +22,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - `StateTimeline`: discrete replicated state (flags, counters) played back on the server timeline, in step with interpolated positions.
 
 ### Changed
+- **Space: gentler gravity close to the star**: the pull is capped at 400 px/s², just under the weakest ship's thrust, so any ship's engines can always (just) climb out.
 - **Space: infinite map** (#29): no more edges. The camera follows your ship over a parallax star field; the server keeps rocks coming around every ship and drops the ones left far behind. Ships respawn where they were destroyed, and late joiners spawn next to a ship already playing.
 - **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
 
