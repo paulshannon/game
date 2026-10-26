@@ -12,7 +12,7 @@ const PUFF_LAST: int = 16
 
 ## Effects farther than this from the camera are skipped: off screen, and in
 ## unbounded space possibly thousands of pixels away (another ship shooting
-## rocks on the far side of a belt).
+## rocks on the far side of a belt). At zoom 1; scaled by the camera zoom.
 const EFFECT_DISTANCE: float = 1200.0
 
 const SOUNDS: Dictionary = {
@@ -87,7 +87,7 @@ func on_appeared(e: SpaceEntity) -> void:
 
 func near_camera(at: Vector2) -> bool:
 	var cam: Camera2D = get_viewport().get_camera_2d()
-	return cam == null or cam.global_position.distance_to(at) <= EFFECT_DISTANCE
+	return cam == null or cam.global_position.distance_to(at) <= EFFECT_DISTANCE / cam.zoom.x
 
 
 func explode(at: Vector2, radius: float) -> void:
