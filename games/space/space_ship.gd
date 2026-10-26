@@ -6,7 +6,7 @@ extends Node2D
 ##
 ## Server: steps SpaceSim from InputRelay, writes the net_* props.
 ## Client: PlayerNet buffers and interpolates them; this draws the Kenney
-## ship, its flame, RCS puffs (braking, turning) and shield, and plays the
+## ship, its flame, RCS puffs (braking, turning, strafing) and shield, and plays the
 ## explosion when it dies.
 
 const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
@@ -14,9 +14,6 @@ const COLORS: Array[String] = ["blue", "green", "orange", "red"]
 ## A colour pick meaning "my seat's colour" (player index), the default.
 const COLOR_AUTO: int = -1
 const SHIP_SCALE: float = 0.5
-## The Gunship hull is Kenney's enemy ship 2, which comes in other colours:
-## orange players get the black one.
-const ENEMY_COLORS: Dictionary = {"blue": "Blue", "green": "Green", "orange": "Black", "red": "Red"}
 
 ## flags bits. Sent with every snapshot (an int), so each change is stamped
 ## with the server time it happened at and drawn at that moment.
@@ -28,20 +25,26 @@ const PROTECTED: int = 16
 const BRAKE: int = 32
 const TURN_LEFT: int = 64
 const TURN_RIGHT: int = 128
+const STRAFE_LEFT: int = 256
+const STRAFE_RIGHT: int = 512
 
-## RCS thrusters, in the body's frame (+x is the nose, +y the right side).
+## RCS puffs. Where each hull's nozzles and flames are: SpaceHullArt.
 const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
 const RCS_SCALE: float = 0.41
-const NOSE_X: float = 14.0
-const TAIL_X: float = -14.0
-const NOSE_Y: float = 9.0
-const TAIL_Y: float = 20.0          # out at the wingtips, clear of the hull
+## Clear air between an RCS nozzle and its puff (px). Main flames have none.
+const RCS_GAP: float = 3.0
+## Main flames overlap the hull this much (sprite px), so no seam shows.
+const FLAME_OVERLAP: float = 1.0
+const FLAME_TEXTURE: String = PACK + "Effects/fire08.png"
 
 ## Server: total distance flown. Client: total distance drawn. Smoke tests read these.
 var traveled: float = 0.0
 var rendered_distance: float = 0.0
 ## Client: frames drawn with an RCS thruster firing (smoke test).
 var rcs_frames: int = 0
+## Server: seconds spent strafing. Client: frames drawn strafing. Smoke tests.
+var strafe_time: float = 0.0
+var strafe_frames: int = 0
 
 ## Server-side rules state. SpaceDirector reads and changes it too.
 var state := SpaceSim.Ship.new()
@@ -85,9 +88,9 @@ var _flag_timeline := StateTimeline.new(ALIVE)
 var _pickup_timeline := StateTimeline.new()
 
 var _body: Node2D
-var _flame: Sprite2D
+var _flames: Array[Sprite2D] = []
 var _shield: Sprite2D
-# Client: RCS puffs by flag bit (BRAKE, TURN_LEFT, TURN_RIGHT).
+# Client: RCS puffs by flag bit (BRAKE, TURN_*, STRAFE_*).
 var _rcs: Dictionary = {}   # int -> Array[Sprite2D]
 var _label: Label
 
@@ -167,8 +170,11 @@ func _physics_process(delta: float) -> void:
 	if not _net.server_side:
 		return
 	var was_alive: bool = state.alive
-	if SpaceSim.step_ship(state, _net.relay.move, _net.relay.fire, delta):
+	if SpaceSim.step_ship(state, _net.relay.move, _net.relay.fire, delta, _net.relay.strafe):
 		_arena.director.fire(self)
+	if state.strafing != 0:
+		strafe_time += delta
+		_arena.strafers[peer_id()] = true
 	if was_alive and state.alive:
 		traveled += state.velocity.length() * delta
 	# Where it was destroyed: in unbounded space a fixed start point could be
@@ -196,6 +202,10 @@ func publish() -> void:
 		f |= TURN_LEFT
 	elif state.turning > 0:
 		f |= TURN_RIGHT
+	if state.strafing < 0:
+		f |= STRAFE_LEFT
+	elif state.strafing > 0:
+		f |= STRAFE_RIGHT
 	if state.shield:
 		f |= SHIELD
 	if state.rapid_for > 0.0:
@@ -220,8 +230,10 @@ func _process(_delta: float) -> void:
 		_body.rotation = float(r)
 	visible = is_alive()
 	var shown: int = _shown_flags()
-	_flame.visible = shown & THRUST != 0
-	_flame.scale = Vector2(0.9, randf_range(0.8, 1.15))
+	for flame: Sprite2D in _flames:
+		flame.visible = shown & THRUST != 0
+		var size: float = float(flame.get_meta("size"))
+		flame.scale = Vector2(size, size * randf_range(0.8, 1.15))
 	var rcs: bool = false
 	for bit: int in _rcs:
 		var on: bool = shown & bit != 0
@@ -231,6 +243,8 @@ func _process(_delta: float) -> void:
 			puff.scale = Vector2.ONE * RCS_SCALE * randf_range(0.75, 1.1)
 	if rcs and visible:
 		rcs_frames += 1
+	if shown & (STRAFE_LEFT | STRAFE_RIGHT) != 0 and visible:
+		strafe_frames += 1
 	_shield.visible = shown & SHIELD != 0
 	# Blink while invulnerable after (re)spawning.
 	_body.modulate.a = 0.45 if shown & PROTECTED != 0 and int(t * 8.0) % 2 == 0 else 1.0
@@ -252,23 +266,11 @@ func _on_pickup(before: int, after: int, _at: float) -> void:
 
 ## Every texture a ship can use, to load them before play starts.
 static func texture_paths() -> Array[String]:
-	var out: Array[String] = [PACK + "Effects/fire08.png", PACK + "Effects/shield1.png", RCS_TEXTURE]
+	var out: Array[String] = [FLAME_TEXTURE, PACK + "Effects/shield1.png", RCS_TEXTURE]
 	for h: int in SpaceSim.HULLS.size():
 		for c: String in COLORS:
-			out.append(hull_texture(h, c))
+			out.append(SpaceHullArt.texture(h, c))
 	return out
-
-
-## The Kenney sprite for a hull in one of COLORS. Player ships point up, the
-## enemy ship (Gunship) down: see hull_points_down().
-static func hull_texture(hull_index: int, color: String) -> String:
-	if hull_index == SpaceSim.GUNSHIP:
-		return PACK + "Enemies/enemy%s2.png" % ENEMY_COLORS.get(color, "Blue")
-	return PACK + "playerShip%d_%s.png" % [SpaceSim.sanitize_hull(hull_index) + 1, color]
-
-
-static func hull_points_down(hull_index: int) -> bool:
-	return hull_index == SpaceSim.GUNSHIP
 
 
 func _build_visuals() -> void:
@@ -283,17 +285,24 @@ func _build_visuals() -> void:
 	art.scale = Vector2.ONE * SHIP_SCALE
 	_body.add_child(art)
 
-	_flame = Sprite2D.new()
-	_flame.name = "Flame"
-	_flame.texture = load(PACK + "Effects/fire08.png") as Texture2D
-	_flame.position = Vector2(0, 52)
-	_flame.visible = false
-	art.add_child(_flame)
+	var flame_tex: Texture2D = load(FLAME_TEXTURE) as Texture2D
+	for jet: Vector3 in SpaceHullArt.flames(state.hull):
+		var flame := Sprite2D.new()
+		flame.name = "Flame%d" % _flames.size()
+		flame.texture = flame_tex
+		# Hang it from its top (the wide end): flicker stretches it away
+		# from the hull, never off it.
+		flame.offset = Vector2(0, flame_tex.get_height() * 0.5)
+		flame.position = Vector2(jet.x, jet.y - FLAME_OVERLAP)
+		flame.set_meta("size", jet.z)
+		flame.visible = false
+		art.add_child(flame)
+		_flames.append(flame)
 
 	var ship := Sprite2D.new()
 	ship.name = "Ship"
-	ship.texture = load(hull_texture(state.hull, color_name())) as Texture2D
-	if hull_points_down(state.hull):
+	ship.texture = load(SpaceHullArt.texture(state.hull, color_name())) as Texture2D
+	if SpaceHullArt.points_down(state.hull):
 		ship.rotation = PI
 	art.add_child(ship)
 
@@ -308,17 +317,32 @@ func _build_visuals() -> void:
 	# a tail thruster on opposite sides, pushing the nose round: turning right
 	# (clockwise) blows the nose's left side and the tail's right side.
 	var rcs_tex: Texture2D = load(RCS_TEXTURE) as Texture2D
+	var h: int = state.hull
+	var nose_l: Vector2 = SpaceHullArt.nozzle(h, true, false)
+	var nose_r: Vector2 = SpaceHullArt.nozzle(h, true, true)
+	var tail_l: Vector2 = SpaceHullArt.nozzle(h, false, false)
+	var tail_r: Vector2 = SpaceHullArt.nozzle(h, false, true)
 	_rcs[BRAKE] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2(1, -0.35)),
-		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2(1, 0.35)),
+		_add_rcs(rcs_tex, nose_l, Vector2(1, -0.35)),
+		_add_rcs(rcs_tex, nose_r, Vector2(1, 0.35)),
 	]
 	_rcs[TURN_RIGHT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2.UP),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, TAIL_Y), Vector2.DOWN),
+		_add_rcs(rcs_tex, nose_l, Vector2.UP),
+		_add_rcs(rcs_tex, tail_r, Vector2.DOWN),
 	]
 	_rcs[TURN_LEFT] = [
-		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
-		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+		_add_rcs(rcs_tex, nose_r, Vector2.DOWN),
+		_add_rcs(rcs_tex, tail_l, Vector2.UP),
+	]
+	# Strafing fires a nose and a tail thruster on the same side, away from
+	# where it's going: strafing right blows out of the left side.
+	_rcs[STRAFE_RIGHT] = [
+		_add_rcs(rcs_tex, nose_l, Vector2.UP),
+		_add_rcs(rcs_tex, tail_l, Vector2.UP),
+	]
+	_rcs[STRAFE_LEFT] = [
+		_add_rcs(rcs_tex, nose_r, Vector2.DOWN),
+		_add_rcs(rcs_tex, tail_r, Vector2.DOWN),
 	]
 
 	_label = Label.new()
@@ -332,13 +356,14 @@ func _build_visuals() -> void:
 
 ## A puff whose nozzle sits at `at` and whose exhaust points along `exhaust`
 ## (body frame). Kenney's fire14 is wide at the top and narrows downwards;
-## flipped, it starts narrow at the nozzle and spreads out along +y.
+## flipped, it starts narrow and spreads out along +y, RCS_GAP from the
+## nozzle (the offset is in texture pixels, so divided by the scale).
 func _add_rcs(texture: Texture2D, at: Vector2, exhaust: Vector2) -> Sprite2D:
 	var puff := Sprite2D.new()
 	puff.name = "Rcs%d" % _body.get_child_count()
 	puff.texture = texture
 	puff.flip_v = true
-	puff.offset = Vector2(0, texture.get_height() * 0.5)
+	puff.offset = Vector2(0, texture.get_height() * 0.5 + RCS_GAP / RCS_SCALE)
 	puff.position = at
 	puff.rotation = exhaust.angle() - PI / 2.0
 	puff.scale = Vector2.ONE * RCS_SCALE

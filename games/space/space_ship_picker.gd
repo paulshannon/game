@@ -147,8 +147,8 @@ func _show() -> void:
 	var h: Dictionary = SpaceSim.HULLS[hull]
 	# Auto previews blue: the seat (and so the colour) is only known on joining.
 	var shown: String = SpaceShip.COLORS[maxi(color, 0)]
-	_art.texture = load(SpaceShip.hull_texture(hull, shown)) as Texture2D
-	_art.flip_v = SpaceShip.hull_points_down(hull)
+	_art.texture = load(SpaceHullArt.texture(hull, shown)) as Texture2D
+	_art.flip_v = SpaceHullArt.points_down(hull)
 	_name.text = "%s  (%d/%d)" % [h["name"], hull + 1, SpaceSim.HULLS.size()]
 	_blurb.text = str(h["blurb"])
 	_color_button.text = AUTO_LABEL if color == SpaceShip.COLOR_AUTO else "Colour: " + shown

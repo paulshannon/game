@@ -26,6 +26,8 @@ var action: StringName = &""
 var move: Vector2 = Vector2.ZERO
 var jump: bool = false
 var fire: bool = false
+## Sideways: -1 left .. 1 right (strafe actions; games that don't strafe ignore it).
+var strafe: float = 0.0
 var last_seq: int = -1
 
 var _seq: int = 0
@@ -65,15 +67,19 @@ func _physics_process(delta: float) -> void:
 
 	var m: Vector2
 	var pressed: bool
+	var side: float
 	if _bot != null:
 		_bot.update(interval)
 		m = _bot.move
+		side = _bot.strafe
 		pressed = (action == InputSetup.JUMP and _bot.jump) or (action == InputSetup.FIRE and _bot.fire)
 	else:
 		m = Input.get_vector(InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN)
+		side = Input.get_axis(InputSetup.STRAFE_LEFT, InputSetup.STRAFE_RIGHT)
 		pressed = gate_button(not action.is_empty() and Input.is_action_pressed(action))
 	_seq += 1
-	submit_input.rpc_id(1, m, pressed and action == InputSetup.JUMP, pressed and action == InputSetup.FIRE, _seq)
+	submit_input.rpc_id(1, m, pressed and action == InputSetup.JUMP, pressed and action == InputSetup.FIRE,
+			side, _seq)
 
 
 ## Server: the bot's input at INPUT_HZ, like a client would send it.
@@ -85,7 +91,7 @@ func _fly_server_bot(delta: float) -> void:
 	_send_accum = fmod(_send_accum, interval)
 	server_bot.update(interval)
 	accept_input(server_bot.move, action == InputSetup.JUMP and server_bot.jump,
-			action == InputSetup.FIRE and server_bot.fire)
+			action == InputSetup.FIRE and server_bot.fire, server_bot.strafe)
 
 
 ## Client: the button as sent. Held since before this player spawned counts
@@ -102,8 +108,10 @@ func gate_button(pressed: bool) -> bool:
 # input supersedes it. Over WebSocket (TCP) it is delivered reliably anyway;
 # the annotation becomes real if the transport changes to WebRTC.
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
-func submit_input(m: Vector2, j: bool, f: bool, seq: int) -> void:
-	if not multiplayer.is_server():
+func submit_input(m: Vector2, j: bool, f: bool, s: float, seq: int) -> void:
+	# A player sent back to select leaves the tree at once (GameBase), but
+	# input already on its way can still be delivered to it: drop it.
+	if not is_inside_tree() or not multiplayer.is_server():
 		return
 	# Never trust the caller: the sender must be the peer this player belongs to.
 	if multiplayer.get_remote_sender_id() != owner_peer:
@@ -112,14 +120,15 @@ func submit_input(m: Vector2, j: bool, f: bool, seq: int) -> void:
 	if seq <= last_seq:
 		return
 	last_seq = seq
-	accept_input(m, j, f)
+	accept_input(m, j, f, s)
 
 
 ## Server: store a validated input and restart the staleness timer.
-func accept_input(m: Vector2, j: bool, f: bool = false) -> void:
+func accept_input(m: Vector2, j: bool, f: bool = false, s: float = 0.0) -> void:
 	move = ArenaSim.sanitize_move(m)
 	jump = j
 	fire = f
+	strafe = clampf(s, -1.0, 1.0) if is_finite(s) else 0.0
 	_since_input = 0.0
 
 
@@ -132,3 +141,4 @@ func age_input(delta: float) -> void:
 		move = Vector2.ZERO
 		jump = false
 		fire = false
+		strafe = 0.0

@@ -17,7 +17,7 @@ func test_space_names_its_controls() -> void:
 	var names: Dictionary = space.control_names()
 	assert_eq(names[InputSetup.UP], "Thrust")
 	assert_eq(names.keys(), [InputSetup.LEFT, InputSetup.RIGHT, InputSetup.UP, InputSetup.DOWN,
-			InputSetup.FIRE, InputSetup.MENU])
+			InputSetup.STRAFE_LEFT, InputSetup.STRAFE_RIGHT, InputSetup.FIRE, InputSetup.MENU])
 	assert_eq(names[InputSetup.MENU], "Ship select")
 	space.free()
 

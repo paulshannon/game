@@ -12,9 +12,13 @@ extends BotInput
 
 ## Enemy ships closer than this are attacked before rocks.
 const ENGAGE_RANGE: float = 500.0
+## Away from a fight, a short sideways burst this often (alternating sides).
+const STRAFE_EVERY: float = 3.0
+const STRAFE_BURST: float = 0.4
 
 var _ship: SpaceShip
 var _arena: SpaceArena
+var _clock: float = 0.0
 
 
 func _init(ship: SpaceShip, arena: SpaceArena) -> void:
@@ -27,9 +31,12 @@ func update(delta: float) -> void:
 	if not _ship.is_alive():
 		super.update(delta)
 		fire = false
+		strafe = 0.0
 		return
 	# An enemy ship close by comes first (PvP); otherwise the nearest rock.
 	var aim: Variant = _nearest_enemy()
+	_clock += delta
+	strafe = _strafe(aim != null)
 	if aim == null:
 		var rock: SpaceEntity = _nearest_asteroid()
 		if rock == null:
@@ -49,6 +56,15 @@ func update(delta: float) -> void:
 		move.y = -0.2
 	fire = absf(off) < 0.3 and dist < 700.0
 	jump = false
+
+
+## In a fight, weave from side to side; otherwise now and then a burst.
+func _strafe(fighting: bool) -> float:
+	if fighting:
+		return 1.0 if sin(_clock * 2.0) > 0.0 else -1.0
+	if fmod(_clock, STRAFE_EVERY) >= STRAFE_BURST:
+		return 0.0
+	return 1.0 if int(_clock / STRAFE_EVERY) % 2 == 0 else -1.0
 
 
 ## Where the nearest enemy ship within ENGAGE_RANGE is (another team, alive,

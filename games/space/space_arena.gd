@@ -37,6 +37,9 @@ var _best_score_seen: int = 0
 var _own_rcs_frames: int = 0
 var _own_pick: Dictionary = {}
 var _bot_moved: bool = false
+var _own_strafe_frames: int = 0
+## Server (smoke test): peers whose ship has strafed.
+var strafers: Dictionary = {}
 # Smoke test (server): hull and colour each player spawned with, by peer id.
 var _picks: Dictionary = {}
 
@@ -111,7 +114,9 @@ func action_button() -> StringName:
 func control_names() -> Dictionary:
 	return {
 		InputSetup.LEFT: "Turn left", InputSetup.RIGHT: "Turn right",
-		InputSetup.UP: "Thrust", InputSetup.DOWN: "Brake", InputSetup.FIRE: "Fire",
+		InputSetup.UP: "Thrust", InputSetup.DOWN: "Brake",
+		InputSetup.STRAFE_LEFT: "Strafe left", InputSetup.STRAFE_RIGHT: "Strafe right",
+		InputSetup.FIRE: "Fire",
 		InputSetup.MENU: "Ship select",
 	}
 
@@ -214,14 +219,15 @@ func _process(delta: float) -> void:
 		if ship == own:
 			_best_own_score = maxi(_best_own_score, ship.score)
 			_own_rcs_frames = maxi(_own_rcs_frames, ship.rcs_frames)
+			_own_strafe_frames = maxi(_own_strafe_frames, ship.strafe_frames)
 			_own_pick = {"hull": ship.hull(), "color": ship.color_index()}
 
 
 ## On top of "everyone moved": the server saw every player shoot, rocks
 ## destroyed, the server bots the clients asked for fly and shoot, and a shot
 ## hit a ship of another team (PvP: bots join on auto, so each is on its own
-## team). Each client drew its own shots, drew an asteroid explode, drew its
-## own ship's RCS thrusters (bots turn constantly), drew a server bot move,
+## team), and every person's ship strafed. Each client drew its own shots, drew an asteroid explode, drew its
+## own ship's RCS thrusters (bots turn constantly) and strafing, drew a server bot move,
 ## showed another ship on its radar, received a score from the server, and got
 ## the hull and colour it asked for. Any ship's score counts, not only its
 ## own: whether one particular bot lands a hit in a short run is chance (it
@@ -242,9 +248,15 @@ func smoke_report() -> Dictionary:
 		report["shooters"] = people_fired
 		report["bot_shooters"] = bots_fired
 		report["bots_peak"] = bots.peak
+		var people_strafed: int = 0
+		for id: int in strafers:
+			if not ServerBots.is_bot(id):
+				people_strafed += 1
+		report["strafers"] = people_strafed
 		report["pvp_hits"] = director.pvp_hits
 		report["pvp_kills"] = director.pvp_kills
-		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0
+		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0 \
+				and people_strafed >= config.expect_peers
 		report["asteroids_destroyed"] = director.asteroids_destroyed
 		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
@@ -260,9 +272,10 @@ func smoke_report() -> Dictionary:
 	report["pick"] = {"asked": join_choice, "got": _own_pick}
 	report["bot_moved"] = _bot_moved
 	report["radar_ships"] = radar.ships_shown
+	report["own_strafe_frames"] = _own_strafe_frames
 	report["ok"] = bool(report["ok"]) and fx.own_shots_seen > 0 and fx.explosions_seen > 0 \
 			and _best_score_seen > 0 and _own_rcs_frames > 0 and _got_what_was_asked() and _bot_moved \
-			and radar.ships_shown > 0
+			and radar.ships_shown > 0 and _own_strafe_frames > 0
 	return report
 
 

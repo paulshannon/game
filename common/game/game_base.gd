@@ -70,6 +70,11 @@ func send_join() -> void:
 ## player can pick again (the menu's ship select) and send_join() back in.
 func leave_to_select() -> void:
 	reselects += 1
+	# Stop sending input now: the server removes the player when this request
+	# arrives, and input sent after it would be for a player that's gone.
+	var relay: Node = local_player().get_node_or_null("InputRelay") if local_player() != null else null
+	if relay != null:
+		relay.set_physics_process(false)
 	_request_despawn.rpc_id(1)
 
 
