@@ -1,7 +1,8 @@
 class_name SpaceDirector
 extends Node
-## Server only: runs the space match around the ships. Keeps the asteroid
-## field topped up, turns ship shots into SHOT entities, and resolves every
+## Server only: runs the space match around the ships. Keeps the unbounded
+## asteroid field topped up around every ship and removes rocks left far
+## behind (SpaceField), turns ship shots into SHOT entities, and resolves every
 ## collision (shot/asteroid, ship/asteroid, ship/pickup) with SpaceSim rules.
 ## Clients never decide a hit or a score; they only see the results as
 ## spawns, despawns and replicated ship state.
@@ -9,10 +10,11 @@ extends Node
 ## Sits after Players in the tree, so its physics tick runs after every ship
 ## has moved this tick.
 
-const MIN_ASTEROIDS: int = 6          # top the field up to this many rocks
-const ASTEROID_INTERVAL: float = 1.5  # at most one new rock this often
+const ASTEROID_INTERVAL: float = 0.5  # at most one new rock this often
 const ASTEROID_SPEED := Vector2(45.0, 100.0)
-const SAFE_DISTANCE: float = 260.0    # new rocks appear this far from ships
+## The first rocks, around the origin before anyone joins: close enough to
+## shoot at once (players start 160 px out).
+const START_DISTANCE := Vector2(350.0, SpaceField.ENTRY_DISTANCE)
 const PICKUP_CHANCE: float = 0.15     # per destroyed asteroid
 
 var arena: SpaceArena
@@ -20,6 +22,7 @@ var arena: SpaceArena
 ## Smoke-test and log counters.
 var shots_fired: Dictionary = {}      # peer id -> shots
 var asteroids_destroyed: int = 0
+var asteroids_dropped: int = 0        # left far behind (SpaceField.is_stray)
 var ships_destroyed: int = 0
 var pickups_taken: int = 0
 ## Peer id -> score, latched as it changes so it outlives the player leaving.
@@ -37,8 +40,10 @@ func _init() -> void:
 
 ## The initial field, before anyone joins.
 func start() -> void:
-	for i: int in MIN_ASTEROIDS:
-		spawn_asteroid(SpaceSim.LARGE, _edge_point(SpaceSim.LARGE), _random_velocity(), PlayerNet.now())
+	for i: int in SpaceField.ROCKS_PER_ANCHOR:
+		var at: Vector2 = SpaceField.entry_point(Vector2.ZERO, _rng.randf() * TAU,
+				_rng.randf_range(START_DISTANCE.x, START_DISTANCE.y))
+		spawn_asteroid(SpaceSim.LARGE, at, _random_velocity(), PlayerNet.now())
 
 
 func fire(ship: SpaceShip) -> void:
@@ -74,10 +79,7 @@ func _physics_process(delta: float) -> void:
 			_:
 				pickups.append(e)
 
-	_spawn_timer -= delta
-	if rocks.size() < MIN_ASTEROIDS and _spawn_timer <= 0.0:
-		_spawn_timer = ASTEROID_INTERVAL
-		spawn_asteroid(SpaceSim.LARGE, _edge_point(SpaceSim.LARGE), _random_velocity(), now)
+	_tend_field(rocks, now, delta)
 
 	for shot: SpaceEntity in shots:
 		# Swept: the whole path the shot covered this tick (~15-20 px, more
@@ -91,7 +93,7 @@ func _physics_process(delta: float) -> void:
 				_destroy_asteroid(rock, now, _ship_of(shot.owner_peer))
 				shot.queue_free()
 				break
-		if not shot.is_queued_for_deletion() and SpaceSim.shot_expired(shot.origin, shot.velocity, age):
+		if not shot.is_queued_for_deletion() and SpaceSim.shot_expired(age):
 			shot.queue_free()
 
 	for ship: SpaceShip in _ships():
@@ -148,28 +150,45 @@ func _ship_of(peer: int) -> SpaceShip:
 	return p as SpaceShip if p != null and not p.is_queued_for_deletion() else null
 
 
-## A point on the field's edge, away from every living ship when possible.
-func _edge_point(size: int) -> Vector2:
-	var r: Rect2 = SpaceSim.BOUNDS.grow(-SpaceSim.asteroid_radius(size))
-	var p: Vector2 = r.position
+## Where the field is kept: every ship (parked where it was destroyed, if
+## it was), or the origin while nobody plays.
+func _anchors() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for ship: SpaceShip in _ships():
+		out.append(ship.state.position)
+	if out.is_empty():
+		out.append(Vector2.ZERO)
+	return out
+
+
+## Drop rocks nobody is near any more, and bring a new one in for the ship
+## with the emptiest surroundings. A removed rock explodes on clients only if
+## it's on their screen (SpaceFx), and a stray is off everyone's.
+func _tend_field(rocks: Array[SpaceEntity], now: float, delta: float) -> void:
+	var anchors: PackedVector2Array = _anchors()
+	var positions := PackedVector2Array()
+	for rock: SpaceEntity in rocks:
+		var at: Vector2 = rock.position_at(now)
+		if SpaceField.is_stray(at, anchors):
+			asteroids_dropped += 1
+			rock.queue_free()
+		else:
+			positions.append(at)
+	_spawn_timer -= delta
+	if _spawn_timer > 0.0:
+		return
+	var needy: int = SpaceField.neediest(anchors, positions)
+	if needy == -1:
+		return
+	_spawn_timer = ASTEROID_INTERVAL
+	var anchor: Vector2 = anchors[needy]
+	var at: Vector2 = SpaceField.entry_point(anchor, _rng.randf() * TAU)
 	for attempt: int in 12:
-		var u: float = _rng.randf()
-		match _rng.randi() % 4:
-			0:
-				p = Vector2(lerpf(r.position.x, r.end.x, u), r.position.y)
-			1:
-				p = Vector2(lerpf(r.position.x, r.end.x, u), r.end.y)
-			2:
-				p = Vector2(r.position.x, lerpf(r.position.y, r.end.y, u))
-			_:
-				p = Vector2(r.end.x, lerpf(r.position.y, r.end.y, u))
-		var clear: bool = true
-		for ship: SpaceShip in _ships():
-			if ship.state.alive and ship.state.position.distance_to(p) < SAFE_DISTANCE:
-				clear = false
-		if clear:
+		if SpaceField.is_clear(at, anchors):
 			break
-	return p
+		at = SpaceField.entry_point(anchor, _rng.randf() * TAU)
+	var speed: float = _rng.randf_range(ASTEROID_SPEED.x, ASTEROID_SPEED.y)
+	spawn_asteroid(SpaceSim.LARGE, at, SpaceField.entry_velocity(at, anchor, _rng.randf_range(-1.0, 1.0), speed), now)
 
 
 func _random_velocity() -> Vector2:

@@ -40,7 +40,6 @@ var rcs_frames: int = 0
 
 ## Server-side rules state. SpaceDirector reads and changes it too.
 var state := SpaceSim.Ship.new()
-var spawn_point: Vector2 = Vector2.ZERO
 
 var _net := PlayerNet.new(true)
 var _arena: SpaceArena
@@ -96,8 +95,7 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 			PackedStringArray(["score"]))
 	if use_bot and not server_side:
 		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
-	spawn_point = data["pos"]
-	SpaceSim.respawn(state, spawn_point)
+	SpaceSim.respawn(state, data["pos"])
 	net_position = state.position
 	net_rotation = state.rotation
 	position = state.position
@@ -144,8 +142,10 @@ func _physics_process(delta: float) -> void:
 		_arena.director.fire(self)
 	if was_alive and state.alive:
 		traveled += state.velocity.length() * delta
+	# Where it was destroyed: in unbounded space a fixed start point could be
+	# any distance from the others by now. Spawn protection covers the rocks.
 	if SpaceSim.can_respawn(state):
-		SpaceSim.respawn(state, spawn_point)
+		SpaceSim.respawn(state, state.position)
 	publish()
 
 

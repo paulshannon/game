@@ -102,7 +102,7 @@ func position_at(server_time: float) -> Vector2:
 	var a: float = maxf(age(server_time), 0.0)
 	match kind:
 		Kind.ASTEROID:
-			return SpaceSim.asteroid_position(origin, velocity, a, variant)
+			return SpaceSim.asteroid_position(origin, velocity, a)
 		Kind.SHOT:
 			return SpaceSim.shot_position(origin, velocity, a)
 	return origin
