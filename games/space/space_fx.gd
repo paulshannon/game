@@ -10,6 +10,12 @@ const PUFFS: String = "res://assets/kenney/space-shooter-extension/PNG/Sprites/E
 const PUFF_FIRST: int = 8    # spaceEffects_008..016: round smoke puffs, small to large
 const PUFF_LAST: int = 16
 
+## Effects farther than this from the camera are skipped: off screen, and in
+## unbounded space possibly thousands of pixels away. That includes rocks the
+## server drops for being far from every ship (SpaceField.STRAY_DISTANCE is
+## larger), which would otherwise "explode" when their ghost ends.
+const EFFECT_DISTANCE: float = 1200.0
+
 const SOUNDS: Dictionary = {
 	"shot": "res://assets/kenney/sci-fi-sounds/Audio/laserSmall_001.ogg",
 	"rock": "res://assets/kenney/sci-fi-sounds/Audio/explosionCrunch_000.ogg",
@@ -76,16 +82,26 @@ func on_appeared(e: SpaceEntity) -> void:
 	var own: bool = Net.is_online() and e.owner_peer == multiplayer.get_unique_id()
 	if own:
 		own_shots_seen += 1
-	play("shot", -6.0 if own else -14.0)
+	if own or near_camera(e.global_position):
+		play("shot", -6.0 if own else -14.0)
+
+
+func near_camera(at: Vector2) -> bool:
+	var cam: Camera2D = get_viewport().get_camera_2d()
+	return cam == null or cam.global_position.distance_to(at) <= EFFECT_DISTANCE
 
 
 func explode(at: Vector2, radius: float) -> void:
+	if not near_camera(at):
+		return
 	explosions_seen += 1
 	play("rock", -4.0)
 	_puff_burst(at, radius, Color(1.0, 0.75, 0.45))
 
 
 func ship_destroyed(at: Vector2) -> void:
+	if not near_camera(at):
+		return
 	play("ship")
 	_puff_burst(at, 34.0, Color(1.0, 0.55, 0.3))
 

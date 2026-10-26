@@ -1,6 +1,7 @@
 class_name SpaceArena
 extends GameBase
-## Space: co-op asteroid shooting in a bounded star field. Ships with momentum
+## Space: co-op asteroid shooting in an unbounded star field (the camera
+## follows your ship; SpaceField keeps rocks coming around every ship). Ships with momentum
 ## (SpaceShip) shoot asteroids that split into smaller, more valuable pieces;
 ## some drop pickups. Rules are SpaceSim, run on the server by SpaceDirector.
 ## Its main menu is SpaceMenu.
@@ -22,6 +23,8 @@ var director: SpaceDirector
 ## the same moment (a shot leaves the nose of the ship as drawn).
 var clock := SnapshotClock.new()
 var fx: SpaceFx
+var camera: Camera2D
+var _stars: Starfield
 
 # Smoke test (client): latched every frame, like GameBase's.
 var _best_own_score: int = 0
@@ -52,27 +55,21 @@ func start_server() -> void:
 
 
 func _build_client_world() -> void:
+	# Process after the ships (children, priority 0), so the camera follows
+	# where the own ship is drawn this frame, not last frame.
+	process_priority = 1
 	RenderingServer.set_default_clear_color(Color(0.03, 0.04, 0.09))
 	var backdrop := CanvasLayer.new()
 	backdrop.name = "Backdrop"
 	backdrop.layer = -10  # screen-space, behind the world
-	backdrop.add_child(Starfield.new())
+	_stars = Starfield.new()
+	backdrop.add_child(_stars)
 	add_child(backdrop)
 
-	var r: Rect2 = SpaceSim.BOUNDS
-	var edge := Line2D.new()
-	edge.name = "Edge"
-	edge.points = PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
-	edge.closed = true
-	edge.width = 3.0
-	edge.default_color = Color(SpaceUi.ACCENT, 0.6)
-	edge.z_index = -9
-	add_child(edge)
-
-	var cam := Camera2D.new()
-	cam.name = "Camera"
-	add_child(cam)
-	cam.make_current()
+	camera = Camera2D.new()
+	camera.name = "Camera"
+	add_child(camera)
+	camera.make_current()
 
 	fx = SpaceFx.new()
 	fx.name = "Fx"
@@ -104,8 +101,16 @@ func control_names() -> Dictionary:
 	}
 
 
+## Around the origin at the start; once people have flown off, a newcomer
+## joins them instead (round the first ship still in the match).
 func _spawn_position(index: int) -> Variant:
-	return Vector2.from_angle(index * TAU / Protocol.MAX_PLAYERS) * 160.0
+	var around: Vector2 = Vector2.ZERO
+	for p: Node in active_players():
+		var ship: SpaceShip = p as SpaceShip
+		if ship != null:
+			around = ship.state.position
+			break
+	return around + Vector2.from_angle(index * TAU / Protocol.MAX_PLAYERS) * 160.0
 
 
 func _create_player(data: Dictionary) -> Node:
@@ -126,6 +131,13 @@ func _spawn_entity(data: Variant) -> Node:
 
 func _process(delta: float) -> void:
 	super._process(delta)
+	if camera != null:
+		# The ship is drawn interpolated already, so the camera just sits on it
+		# (and stays where it was destroyed until it respawns there).
+		var own: Node2D = local_player() as Node2D
+		if own != null:
+			camera.position = own.position
+		_stars.scroll = camera.position
 	if config.is_server or config.run_seconds <= 0.0 or not Net.is_online():
 		return
 	var own: Node = local_player()
@@ -150,6 +162,7 @@ func smoke_report() -> Dictionary:
 		report["ok"] = bool(report["ok"]) and everyone_fired and director.asteroids_destroyed > 0
 		report["shooters"] = director.shots_fired.size()
 		report["asteroids_destroyed"] = director.asteroids_destroyed
+		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
 		report["pickups_taken"] = director.pickups_taken
 		report["scores"] = director.scores

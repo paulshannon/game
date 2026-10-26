@@ -7,9 +7,9 @@ extends RefCounted
 ## Asteroids, shots and pickups move on fixed paths from their spawn data
 ## (origin, velocity, birth time), so any peer can work out where one is at
 ## any server time without per-tick replication: see asteroid_position().
-
-## The playfield. Ships bounce off its edges, asteroids too; shots leave it.
-const BOUNDS := Rect2(-600.0, -320.0, 1200.0, 640.0)
+##
+## Space is unbounded: nothing has an edge to bounce off. SpaceField decides
+## where new rocks come in around the ships and which ones are left behind.
 
 # --- ships --------------------------------------------------------------------
 
@@ -18,7 +18,6 @@ const THRUST: float = 560.0           # px/s² at full forward
 const REVERSE_THRUST: float = 240.0   # px/s² at full back (a brake, mostly)
 const MAX_SPEED: float = 440.0
 const DRAG: float = 0.5               # 1/s: coasting keeps momentum, but not forever
-const WALL_BOUNCE: float = 0.5        # speed kept when bouncing off the edge
 const SHIP_RADIUS: float = 18.0
 
 const RESPAWN_TIME: float = 2.0
@@ -100,7 +99,6 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
 	s.velocity += facing(s) * push * accel * delta
 	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(MAX_SPEED)
 	s.position += s.velocity * delta
-	_bounce(s)
 
 	if fire and s.cooldown <= 0.0:
 		s.cooldown = RAPID_COOLDOWN if s.rapid_for > 0.0 else FIRE_COOLDOWN
@@ -112,16 +110,6 @@ static func _stop_thrusters(s: Ship) -> void:
 	s.thrusting = false
 	s.braking = false
 	s.turning = 0
-
-
-static func _bounce(s: Ship) -> void:
-	var r: Rect2 = BOUNDS.grow(-SHIP_RADIUS)
-	if s.position.x < r.position.x or s.position.x > r.end.x:
-		s.position.x = clampf(s.position.x, r.position.x, r.end.x)
-		s.velocity.x = -s.velocity.x * WALL_BOUNCE
-	if s.position.y < r.position.y or s.position.y > r.end.y:
-		s.position.y = clampf(s.position.y, r.position.y, r.end.y)
-		s.velocity.y = -s.velocity.y * WALL_BOUNCE
 
 
 static func can_respawn(s: Ship) -> bool:
@@ -175,27 +163,15 @@ static func shot_position(origin: Vector2, velocity: Vector2, age: float) -> Vec
 	return origin + velocity * age
 
 
-static func shot_expired(origin: Vector2, velocity: Vector2, age: float) -> bool:
-	return age >= SHOT_LIFE or not BOUNDS.has_point(shot_position(origin, velocity, age))
+static func shot_expired(age: float) -> bool:
+	return age >= SHOT_LIFE
 
 
-## An asteroid drifts in a straight line and bounces off the edges. Computed in
-## closed form from its spawn data, so it needs no state and no replication.
-static func asteroid_position(origin: Vector2, velocity: Vector2, age: float, size: int) -> Vector2:
-	var r: Rect2 = BOUNDS.grow(-asteroid_radius(size))
-	return Vector2(
-			_reflect(origin.x, velocity.x * age, r.position.x, r.end.x),
-			_reflect(origin.y, velocity.y * age, r.position.y, r.end.y))
-
-
-## Position after travelling `distance` from `x` between walls lo and hi:
-## a triangle wave with period 2 * (hi - lo).
-static func _reflect(x: float, distance: float, lo: float, hi: float) -> float:
-	var span: float = hi - lo
-	if span <= 0.0:
-		return lo
-	var u: float = fposmod(clampf(x, lo, hi) - lo + distance, 2.0 * span)
-	return lo + (u if u <= span else 2.0 * span - u)
+## An asteroid drifts in a straight line forever (until it's shot, or left so
+## far behind that SpaceField removes it). Computed from its spawn data, so it
+## needs no state and no replication.
+static func asteroid_position(origin: Vector2, velocity: Vector2, age: float) -> Vector2:
+	return origin + velocity * age
 
 
 static func asteroid_radius(size: int) -> float:

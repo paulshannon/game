@@ -3,9 +3,15 @@ extends Control
 ## Screen-space star field: three depth layers of stars that drift slowly and
 ## twinkle. Procedural (no art needed) and seeded, so it looks the same every
 ## run. Fills its rect; used behind the menu and as the arena backdrop.
+## As the backdrop it scrolls with the camera, nearer layers faster
+## (parallax), so flying through unbounded space shows as motion.
 
 const COUNT: int = 220
 const DRIFT := Vector2(-6.0, 1.5)   # pixels per second for the nearest layer
+const PARALLAX: float = 0.3         # nearest layer moves this fraction of the camera's motion
+
+## The camera's world position (zero behind the menu).
+var scroll: Vector2 = Vector2.ZERO
 
 var _stars: Array[Vector4] = []     # x, y (0..1), depth (0.25..1), twinkle phase
 var _time: float = 0.0
@@ -32,7 +38,7 @@ func _draw() -> void:
 	var r: Vector2 = size
 	draw_rect(Rect2(Vector2.ZERO, r), Color(0.03, 0.04, 0.09))
 	for s: Vector4 in _stars:
-		var p := Vector2(s.x * r.x, s.y * r.y) + DRIFT * s.z * _time
+		var p := Vector2(s.x * r.x, s.y * r.y) + (DRIFT * _time - scroll * PARALLAX) * s.z
 		p = Vector2(fposmod(p.x, r.x), fposmod(p.y, r.y))
 		var twinkle: float = 0.65 + 0.35 * sin(_time * (1.0 + s.z * 2.0) + s.w)
 		var c := Color(SpaceUi.STAR_WHITE, twinkle * (0.35 + 0.65 * s.z))

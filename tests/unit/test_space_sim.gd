@@ -52,13 +52,13 @@ func test_turning_rotates_without_moving() -> void:
 	assert_eq(s.velocity, Vector2.ZERO)
 
 
-func test_bounces_off_the_edge() -> void:
+func test_space_has_no_edge() -> void:
 	var s := _ship()
-	s.position = Vector2(SpaceSim.BOUNDS.end.x - SpaceSim.SHIP_RADIUS - 1.0, 0)
+	s.position = Vector2(50000, -30000)
 	s.velocity = Vector2(300, 0)
 	SpaceSim.step_ship(s, Vector2.ZERO, false, DT)
-	assert_true(s.velocity.x < 0.0, "velocity reflected")
-	assert_true(SpaceSim.BOUNDS.grow(-SpaceSim.SHIP_RADIUS + 0.01).has_point(s.position))
+	assert_true(s.velocity.x > 0.0, "keeps going")
+	assert_true(s.position.x > 50000.0)
 
 
 func test_bad_input_is_sanitized() -> void:
@@ -92,39 +92,17 @@ func test_shot_starts_at_nose_and_keeps_ship_momentum() -> void:
 	assert_eq(SpaceSim.shot_velocity(s), Vector2(SpaceSim.SHOT_SPEED, 100))
 
 
-func test_shot_expires_by_age_or_leaving_the_field() -> void:
-	var v := Vector2(SpaceSim.SHOT_SPEED, 0)
-	assert_false(SpaceSim.shot_expired(Vector2(-500, 0), v, 0.5))
-	assert_true(SpaceSim.shot_expired(Vector2(-500, 0), v, SpaceSim.SHOT_LIFE))
-	assert_true(SpaceSim.shot_expired(Vector2(550, 0), v, 0.2), "left the field")
+func test_shot_expires_by_age() -> void:
+	assert_false(SpaceSim.shot_expired(0.5))
+	assert_true(SpaceSim.shot_expired(SpaceSim.SHOT_LIFE))
 
 
-func test_asteroid_moves_in_a_line_then_bounces() -> void:
-	var size: int = SpaceSim.LARGE
-	var p0 := Vector2(0, 0)
-	var v := Vector2(100, 0)
-	assert_eq(SpaceSim.asteroid_position(p0, v, 1.0, size), Vector2(100, 0))
-	var wall: float = SpaceSim.BOUNDS.end.x - SpaceSim.asteroid_radius(size)
-	# Travels to the wall, then comes back the same distance it overshot.
-	var t: float = (wall + 50.0) / 100.0
-	assert_near(SpaceSim.asteroid_position(p0, v, t, size).x, wall - 50.0, 0.01)
-
-
-func test_asteroid_stays_inside_forever() -> void:
-	var size: int = SpaceSim.SMALL
-	var r: Rect2 = SpaceSim.BOUNDS.grow(-SpaceSim.asteroid_radius(size) + 0.01)
-	for i: int in 200:
-		var p: Vector2 = SpaceSim.asteroid_position(Vector2(10, -20), Vector2(173, -91), i * 7.3, size)
-		assert_true(r.has_point(p), "at %d: %s" % [i, p])
-
-
-func test_asteroid_path_is_continuous() -> void:
-	# Interpolating clients sample it every frame: no jumps at the bounces.
-	var prev: Vector2 = SpaceSim.asteroid_position(Vector2.ZERO, Vector2(240, 130), 0.0, SpaceSim.MEDIUM)
-	for i: int in range(1, 2000):
-		var p: Vector2 = SpaceSim.asteroid_position(Vector2.ZERO, Vector2(240, 130), i * DT, SpaceSim.MEDIUM)
-		assert_true(p.distance_to(prev) <= 275.0 * DT + 0.01, "jump at tick %d" % i)
-		prev = p
+func test_asteroid_drifts_in_a_straight_line() -> void:
+	var p0 := Vector2(-20, 30)
+	var v := Vector2(100, -40)
+	assert_eq(SpaceSim.asteroid_position(p0, v, 0.0), p0)
+	assert_eq(SpaceSim.asteroid_position(p0, v, 1.0), Vector2(80, -10))
+	assert_near(SpaceSim.asteroid_position(p0, v, 600.0).x, 59980.0, 0.01, "no edge to bounce off")
 
 
 func test_split_gives_two_faster_smaller_pieces() -> void:
