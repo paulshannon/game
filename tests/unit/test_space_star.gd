@@ -119,3 +119,18 @@ func test_a_slightly_earlier_time_coasts_back() -> void:
 	var later: Vector2 = fall.position_at(1.0)
 	var earlier: Vector2 = fall.position_at(0.98)
 	assert_true(earlier.distance_to(later) < 3.0)
+
+
+func test_every_hull_can_climb_out_under_full_thrust() -> void:
+	for h: int in SpaceSim.HULLS.size():
+		assert_true(float(SpaceSim.HULLS[h]["thrust"]) > SpaceStar.MAX_PULL,
+				"%s's engines beat the strongest pull" % SpaceSim.HULLS[h]["name"])
+		# Right at the surface, nose out, full thrust: it climbs.
+		var s := SpaceSim.Ship.new()
+		SpaceSim.set_hull(s, h)
+		s.position = Vector2(SpaceStar.RADIUS + 25.0, 0)
+		s.rotation = 0.0   # facing +x: away from the star
+		for i: int in 120:
+			SpaceSim.step_ship(s, Vector2.UP, false, 1.0 / 60.0)
+		assert_true(s.alive and s.position.x > SpaceStar.RADIUS + 60.0 and s.velocity.x > 0.0,
+				"%s climbs out, at %s" % [SpaceSim.HULLS[h]["name"], s.position])
