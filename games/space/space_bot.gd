@@ -35,6 +35,7 @@ const FAR: float = 1500.0
 const FAR_SPEED: float = 700.0
 const HOLD_OFF: float = 220.0
 const SLACK: float = 70.0
+const GUN_RANGE: float = 700.0
 
 var _ship: SpaceShip
 var _arena: SpaceArena
@@ -99,8 +100,9 @@ func _track(delta: float) -> void:
 
 ## Close in on `target` (or back off), and shoot when lined up (if `shoot`).
 ## It wants to move towards it at up to APPROACH_SPEED, slowing to a stop at
-## HOLD_OFF: when its velocity is further off than SLACK it turns to face the
-## difference and burns; otherwise it faces the target and coasts.
+## HOLD_OFF: when its velocity is further off than SLACK (three times that in
+## gun range) it turns to face the difference and burns; otherwise it faces
+## the target and coasts.
 func _fly_to(target: Vector2, shoot: bool) -> void:
 	var to: Vector2 = target - _ship.position
 	var dist: float = to.length()
@@ -108,14 +110,30 @@ func _fly_to(target: Vector2, shoot: bool) -> void:
 	var top: float = FAR_SPEED if dist > FAR else APPROACH_SPEED
 	var want: Vector2 = dir * clampf((dist - HOLD_OFF) * 1.5, -APPROACH_SPEED * 0.5, top)
 	var error: Vector2 = want - _velocity
-	var burn: bool = error.length() > SLACK
+	# In gun range it keeps its nose on the target unless far off the speed it wants.
+	var burn: bool = error.length() > (SLACK if dist > GUN_RANGE else SLACK * 3.0)
 	var face: Vector2 = error if burn else to
 	var off: float = angle_difference(_ship.rendered_rotation(), face.angle())
 	move.x = clampf(off * 3.0, -1.0, 1.0)
 	move.y = -1.0 if burn and absf(off) < 0.6 else 0.0   # -y is forward
-	var aim_off: float = angle_difference(_ship.rendered_rotation(), to.angle())
-	fire = shoot and absf(aim_off) < 0.3 and dist < 700.0
+	fire = shoot and (_lined_up(target, 0.3) or _rock_in_sights())
 	jump = false
+
+
+func _lined_up(at: Vector2, tolerance: float) -> bool:
+	var to: Vector2 = at - _ship.position
+	return to.length() < GUN_RANGE and absf(angle_difference(_ship.rendered_rotation(), to.angle())) < tolerance
+
+
+## Whether a rock is right in front of the guns, whatever it's flying at (a
+## raider crossing the map takes the shots it gets).
+func _rock_in_sights() -> bool:
+	for n: Node in _arena.entities_root.get_children():
+		var e: SpaceEntity = n as SpaceEntity
+		if e != null and e.kind == SpaceEntity.Kind.ASTEROID and (_arena.config.is_server or e.visible) \
+				and _lined_up(_where(e), 0.12):
+			return true
+	return false
 
 
 ## In a fight, weave from side to side; otherwise now and then a burst.
