@@ -6,7 +6,7 @@ extends Node2D
 ##
 ## Server: steps SpaceSim from InputRelay, writes the net_* props.
 ## Client: PlayerNet buffers and interpolates them; this draws the Kenney
-## ship, its flame, RCS puffs (braking, turning) and shield, and plays the
+## ship, its flame, RCS puffs (braking, turning, strafing) and shield, and plays the
 ## explosion when it dies.
 
 const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
@@ -28,6 +28,8 @@ const PROTECTED: int = 16
 const BRAKE: int = 32
 const TURN_LEFT: int = 64
 const TURN_RIGHT: int = 128
+const STRAFE_LEFT: int = 256
+const STRAFE_RIGHT: int = 512
 
 ## RCS thrusters, in the body's frame (+x is the nose, +y the right side).
 const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
@@ -42,6 +44,9 @@ var traveled: float = 0.0
 var rendered_distance: float = 0.0
 ## Client: frames drawn with an RCS thruster firing (smoke test).
 var rcs_frames: int = 0
+## Server: seconds spent strafing. Client: frames drawn strafing. Smoke tests.
+var strafe_time: float = 0.0
+var strafe_frames: int = 0
 
 ## Server-side rules state. SpaceDirector reads and changes it too.
 var state := SpaceSim.Ship.new()
@@ -87,7 +92,7 @@ var _pickup_timeline := StateTimeline.new()
 var _body: Node2D
 var _flame: Sprite2D
 var _shield: Sprite2D
-# Client: RCS puffs by flag bit (BRAKE, TURN_LEFT, TURN_RIGHT).
+# Client: RCS puffs by flag bit (BRAKE, TURN_*, STRAFE_*).
 var _rcs: Dictionary = {}   # int -> Array[Sprite2D]
 var _label: Label
 
@@ -167,8 +172,11 @@ func _physics_process(delta: float) -> void:
 	if not _net.server_side:
 		return
 	var was_alive: bool = state.alive
-	if SpaceSim.step_ship(state, _net.relay.move, _net.relay.fire, delta):
+	if SpaceSim.step_ship(state, _net.relay.move, _net.relay.fire, delta, _net.relay.strafe):
 		_arena.director.fire(self)
+	if state.strafing != 0:
+		strafe_time += delta
+		_arena.strafers[peer_id()] = true
 	if was_alive and state.alive:
 		traveled += state.velocity.length() * delta
 	# Where it was destroyed: in unbounded space a fixed start point could be
@@ -196,6 +204,10 @@ func publish() -> void:
 		f |= TURN_LEFT
 	elif state.turning > 0:
 		f |= TURN_RIGHT
+	if state.strafing < 0:
+		f |= STRAFE_LEFT
+	elif state.strafing > 0:
+		f |= STRAFE_RIGHT
 	if state.shield:
 		f |= SHIELD
 	if state.rapid_for > 0.0:
@@ -231,6 +243,8 @@ func _process(_delta: float) -> void:
 			puff.scale = Vector2.ONE * RCS_SCALE * randf_range(0.75, 1.1)
 	if rcs and visible:
 		rcs_frames += 1
+	if shown & (STRAFE_LEFT | STRAFE_RIGHT) != 0 and visible:
+		strafe_frames += 1
 	_shield.visible = shown & SHIELD != 0
 	# Blink while invulnerable after (re)spawning.
 	_body.modulate.a = 0.45 if shown & PROTECTED != 0 and int(t * 8.0) % 2 == 0 else 1.0
@@ -319,6 +333,16 @@ func _build_visuals() -> void:
 	_rcs[TURN_LEFT] = [
 		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
 		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+	]
+	# Strafing fires a nose and a tail thruster on the same side, away from
+	# where it's going: strafing right blows out of the left side.
+	_rcs[STRAFE_RIGHT] = [
+		_add_rcs(rcs_tex, Vector2(NOSE_X, -NOSE_Y), Vector2.UP),
+		_add_rcs(rcs_tex, Vector2(TAIL_X, -TAIL_Y), Vector2.UP),
+	]
+	_rcs[STRAFE_LEFT] = [
+		_add_rcs(rcs_tex, Vector2(NOSE_X, NOSE_Y), Vector2.DOWN),
+		_add_rcs(rcs_tex, Vector2(TAIL_X, TAIL_Y), Vector2.DOWN),
 	]
 
 	_label = Label.new()

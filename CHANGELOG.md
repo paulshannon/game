@@ -7,6 +7,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 ## [Unreleased]
 
 ### Added
+- **Space: strafe**: Q / E (LB / RB or the right stick) slide your ship sideways without turning, at 60% of its thrust, with side thrusters drawn. Bots weave in dogfights. The input protocol gains a `strafe` axis (`submit_input(move, jump, fire, strafe, seq)`).
 - **Space: teams, PvP and radar** (#35): colours are teams (auto joins the smallest); shots hit ships of other teams (200 points a kill, shields and spawn protection still count, no friendly fire); bots attack enemy ships near them; the scoreboard groups players by team with totals; a radar top-centre shows ships around you (and the way to far ones) and nearby rocks.
 - **Server-flown bots**: the first person into an empty match picks how many bots (0–7) on the space menu's **Bots** row. The server flies them itself (`ServerBots`: no client, no socket), with a random ship and colour; they give up seats to people and leave with the last one. Works for any game (`GameBase._make_server_bot`); only space has the menu row.
 - **Back to select with Esc**: Esc (Start on a controller, a **Menu** button top-left on touch; remappable) despawns your player and shows the menu again without leaving the match. In space, pick another ship or colour and Play: same seat, same score. Games without a menu show their join button. Bots do it once per smoke run, and each client checks it spawned again.

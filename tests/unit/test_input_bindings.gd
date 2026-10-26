@@ -161,3 +161,12 @@ func test_menu_defaults_to_escape_and_start() -> void:
 	var slots: Array[InputEvent] = InputSetup.default_bindings(InputSetup.MENU)
 	assert_eq((slots[0] as InputEventKey).physical_keycode, KEY_ESCAPE)
 	assert_eq((slots[2] as InputEventJoypadButton).button_index, JOY_BUTTON_START)
+
+
+func test_strafe_defaults_to_q_e_and_shoulders() -> void:
+	var left: Array[InputEvent] = InputSetup.default_bindings(InputSetup.STRAFE_LEFT)
+	var right: Array[InputEvent] = InputSetup.default_bindings(InputSetup.STRAFE_RIGHT)
+	assert_eq((left[0] as InputEventKey).physical_keycode, KEY_Q)
+	assert_eq((right[0] as InputEventKey).physical_keycode, KEY_E)
+	assert_eq((left[2] as InputEventJoypadButton).button_index, JOY_BUTTON_LEFT_SHOULDER)
+	assert_eq((right[3] as InputEventJoypadMotion).axis, JOY_AXIS_RIGHT_X)

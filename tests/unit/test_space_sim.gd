@@ -296,3 +296,30 @@ func test_smallest_team_prefers_the_seat_on_a_tie() -> void:
 	assert_eq(SpaceSim.smallest_team([0, 0, 0, 0] as Array[int], 2), 2)
 	assert_eq(SpaceSim.smallest_team([1, 0, 0, 1] as Array[int], 3), 1, "next empty one after the seat's")
 	assert_eq(SpaceSim.smallest_team([2, 1, 2, 2] as Array[int], 6), 1)
+
+
+# --- strafe -------------------------------------------------------------------
+
+func test_strafe_pushes_sideways_without_turning() -> void:
+	var s := _ship()   # facing +x, so its right side is +y (y is down)
+	for i: int in 30:
+		SpaceSim.step_ship(s, Vector2.ZERO, false, DT, 1.0)
+	assert_true(s.velocity.y > 50.0, "strafing right moves towards +y, got %s" % s.velocity)
+	assert_near(s.velocity.x, 0.0, 0.001)
+	assert_near(s.rotation, 0.0, 0.001, "the nose stays put")
+	assert_eq(s.strafing, 1)
+
+
+func test_strafe_is_weaker_than_thrust_and_capped() -> void:
+	var side := _ship()
+	var ahead := _ship()
+	for i: int in 30:
+		SpaceSim.step_ship(side, Vector2.ZERO, false, DT, -1.0)
+		SpaceSim.step_ship(ahead, Vector2.UP, false, DT)
+	assert_true(side.velocity.length() < ahead.velocity.length())
+	assert_eq(side.strafing, -1)
+	SpaceSim.step_ship(side, Vector2.ZERO, false, DT, INF)
+	assert_eq(side.strafing, 0, "a non-finite strafe is ignored")
+	for i: int in 600:
+		SpaceSim.step_ship(side, Vector2.UP, false, DT, 1.0)
+	assert_true(side.velocity.length() <= side.max_speed + 0.001, "thrust + strafe still capped")

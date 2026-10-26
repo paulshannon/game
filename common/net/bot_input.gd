@@ -8,6 +8,8 @@ extends RefCounted
 var move: Vector2 = Vector2.ZERO
 var jump: bool = false
 var fire: bool = false
+## -1 left .. 1 right (InputRelay.strafe).
+var strafe: float = 0.0
 
 var _rng := RandomNumberGenerator.new()
 var _until_change: float = 0.0

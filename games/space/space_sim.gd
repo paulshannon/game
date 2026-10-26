@@ -18,6 +18,8 @@ const TURN_SPEED: float = 4.2         # rad/s at full left/right
 const THRUST: float = 560.0           # px/s² at full forward
 const REVERSE_THRUST: float = 240.0   # px/s² at full back (a brake, mostly)
 const MAX_SPEED: float = 440.0
+## Sideways thrust (strafe), as a share of the hull's forward thrust.
+const STRAFE_FACTOR: float = 0.6
 const DRAG: float = 0.5               # 1/s: coasting keeps momentum, but not forever
 const SHIP_RADIUS: float = 18.0
 
@@ -95,6 +97,8 @@ class Ship:
 	var braking: bool = false
 	## -1 turning left (anticlockwise), 1 right, 0 not turning. Cosmetic too.
 	var turning: int = 0
+	## -1 strafing left, 1 right, 0 not. Cosmetic (side thrusters).
+	var strafing: int = 0
 	var cooldown: float = 0.0
 	var respawn_in: float = 0.0
 	var protected_for: float = 0.0
@@ -122,8 +126,9 @@ static func facing(s: Ship) -> Vector2:
 
 
 ## One tick. move.x turns, -move.y thrusts (up = forward, down = brake), the
-## same stick or keys as the box games. Returns true when the ship fires.
-static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
+## same stick or keys as the box games; `strafe` (-1 left .. 1 right) pushes
+## sideways. Returns true when the ship fires.
+static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float, strafe: float = 0.0) -> bool:
 	s.cooldown = maxf(s.cooldown - delta, 0.0)
 	s.protected_for = maxf(s.protected_for - delta, 0.0)
 	s.rapid_for = maxf(s.rapid_for - delta, 0.0)
@@ -140,6 +145,10 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float) -> bool:
 	s.turning = 0 if absf(m.x) < 0.1 else (1 if m.x > 0.0 else -1)
 	var accel: float = s.thrust if push > 0.0 else REVERSE_THRUST
 	s.velocity += facing(s) * push * accel * delta
+	var side: float = clampf(strafe, -1.0, 1.0) if is_finite(strafe) else 0.0
+	s.strafing = 0 if absf(side) < 0.1 else (1 if side > 0.0 else -1)
+	# Right of the nose: facing turned a quarter clockwise (y is down).
+	s.velocity += facing(s).rotated(PI / 2.0) * side * s.thrust * STRAFE_FACTOR * delta
 	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(s.max_speed)
 	s.position += s.velocity * delta
 
@@ -153,6 +162,7 @@ static func _stop_thrusters(s: Ship) -> void:
 	s.thrusting = false
 	s.braking = false
 	s.turning = 0
+	s.strafing = 0
 
 
 static func can_respawn(s: Ship) -> bool:

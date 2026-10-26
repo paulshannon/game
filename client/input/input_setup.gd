@@ -14,12 +14,16 @@ const UP: StringName = &"move_up"
 const DOWN: StringName = &"move_down"
 const JUMP: StringName = &"jump"
 const FIRE: StringName = &"fire"
+## Sideways thrust (space). Sent as one axis, InputRelay.strafe.
+const STRAFE_LEFT: StringName = &"strafe_left"
+const STRAFE_RIGHT: StringName = &"strafe_right"
 ## Back to the menu's select page (despawns your player; main.gd). Never sent
 ## to the server as input.
 const MENU: StringName = &"menu"
 
-const ACTIONS: Array[StringName] = [LEFT, RIGHT, UP, DOWN, JUMP, FIRE, MENU]
-const MOVES: Array[StringName] = [LEFT, RIGHT, UP, DOWN]
+const ACTIONS: Array[StringName] = [LEFT, RIGHT, UP, DOWN, JUMP, FIRE, MENU, STRAFE_LEFT, STRAFE_RIGHT]
+## Analog actions (they get STICK_DEADZONE).
+const MOVES: Array[StringName] = [LEFT, RIGHT, UP, DOWN, STRAFE_LEFT, STRAFE_RIGHT]
 
 const KEY_SLOTS: int = 2
 const PAD_SLOTS: int = 2
@@ -57,6 +61,10 @@ static func default_bindings(action: StringName) -> Array[InputEvent]:
 			return [_key(KEY_SPACE), null, _button(JOY_BUTTON_A), null]
 		FIRE:
 			return [_key(KEY_SPACE), null, _button(JOY_BUTTON_A), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)]
+		STRAFE_LEFT:
+			return [_key(KEY_Q), null, _button(JOY_BUTTON_LEFT_SHOULDER), _axis(JOY_AXIS_RIGHT_X, -1.0)]
+		STRAFE_RIGHT:
+			return [_key(KEY_E), null, _button(JOY_BUTTON_RIGHT_SHOULDER), _axis(JOY_AXIS_RIGHT_X, 1.0)]
 		MENU:
 			return [_key(KEY_ESCAPE), null, _button(JOY_BUTTON_START), null]
 	return [null, null, null, null]

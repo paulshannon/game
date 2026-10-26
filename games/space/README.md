@@ -36,11 +36,13 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 
-**Thrusters:** the main engine flames while thrusting. Braking fires two RCS puffs forward from the nose. Turning fires a pair on opposite sides (one at the nose, one at a wingtip) that push the nose round. They're cosmetic: the server sends which ones are firing in the ship's `flags`.
+**Thrusters:** the main engine flames while thrusting. Braking fires two RCS puffs forward from the nose. Turning fires a pair on opposite sides (one at the nose, one at a wingtip) that push the nose round. Strafing fires the nose and wingtip thrusters on one side, away from where you're sliding. They're cosmetic: the server sends which ones are firing in the ship's `flags`.
 
 ![RCS thrusters braking and turning](../../docs/screenshots/space-rcs-thrusters.png)
 
-**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Space fire, Esc ship select; on a controller, left stick or D-pad, A or RT to fire, Start for ship select. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right, Menu (ship select) top-left. Controls are the same `move` vector as the box games plus a `fire` action, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
+**Strafe:** Q / E slide the ship left / right without turning it (LB / RB or the right stick on a controller), at 60% of the hull's thrust (`SpaceSim.STRAFE_FACTOR`), still capped at the hull's top speed. Handy for dodging while keeping your guns on a target. Bots weave from side to side in a dogfight. It travels as one more input axis (`InputRelay.strafe`, -1..1, sanitized and released with the rest after `INPUT_TIMEOUT`); the box games ignore it. No touch control for it yet.
+
+**Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Q/E strafe, Space fire, Esc ship select; on a controller, left stick or D-pad, LB/RB or the right stick to strafe, A or RT to fire, Start for ship select. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right, Menu (ship select) top-left. Controls are the same `move` vector as the box games plus a `fire` action and the `strafe` axis, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
 
 **Players:** 1–8 (`Protocol.MAX_PLAYERS`). **Dimension:** 2D. **Port:** 9082. **URL:** `?game=space`.
 
@@ -69,8 +71,8 @@ All are CC0; see `CREDITS.md`.
 ## Smoke test
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. Each smoke client also asks for `SpaceArena.SMOKE_BOTS` (2) server bots. On top of the usual "everyone moved":
-- the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, and that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team);
-- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+- the **server** checks that every person fired, that rocks were destroyed, that the server bots flew and fired, that a shot hit a ship of another team (everyone joins on auto, so each smoke ship is its own team), and that every person's ship strafed;
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew a server bot move, showed another ship on its radar, drew its own ship's RCS thrusters and strafing, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
