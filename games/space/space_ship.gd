@@ -31,6 +31,10 @@ const STRAFE_RIGHT: int = 512
 ## RCS puffs. Where each hull's nozzles and flames are: SpaceHullArt.
 const RCS_TEXTURE: String = PACK + "Effects/fire14.png"
 const RCS_SCALE: float = 0.41
+## Clear air between an RCS nozzle and its puff (px). Main flames have none.
+const RCS_GAP: float = 3.0
+## Main flames overlap the hull this much (sprite px), so no seam shows.
+const FLAME_OVERLAP: float = 1.0
 const FLAME_TEXTURE: String = PACK + "Effects/fire08.png"
 
 ## Server: total distance flown. Client: total distance drawn. Smoke tests read these.
@@ -229,7 +233,7 @@ func _process(_delta: float) -> void:
 	for flame: Sprite2D in _flames:
 		flame.visible = shown & THRUST != 0
 		var size: float = float(flame.get_meta("size"))
-		flame.scale = Vector2(size, size * randf_range(0.9, 1.28))
+		flame.scale = Vector2(size, size * randf_range(0.8, 1.15))
 	var rcs: bool = false
 	for bit: int in _rcs:
 		var on: bool = shown & bit != 0
@@ -286,7 +290,10 @@ func _build_visuals() -> void:
 		var flame := Sprite2D.new()
 		flame.name = "Flame%d" % _flames.size()
 		flame.texture = flame_tex
-		flame.position = Vector2(jet.x, jet.y)
+		# Hang it from its top (the wide end): flicker stretches it away
+		# from the hull, never off it.
+		flame.offset = Vector2(0, flame_tex.get_height() * 0.5)
+		flame.position = Vector2(jet.x, jet.y - FLAME_OVERLAP)
 		flame.set_meta("size", jet.z)
 		flame.visible = false
 		art.add_child(flame)
@@ -349,13 +356,14 @@ func _build_visuals() -> void:
 
 ## A puff whose nozzle sits at `at` and whose exhaust points along `exhaust`
 ## (body frame). Kenney's fire14 is wide at the top and narrows downwards;
-## flipped, it starts narrow at the nozzle and spreads out along +y.
+## flipped, it starts narrow and spreads out along +y, RCS_GAP from the
+## nozzle (the offset is in texture pixels, so divided by the scale).
 func _add_rcs(texture: Texture2D, at: Vector2, exhaust: Vector2) -> Sprite2D:
 	var puff := Sprite2D.new()
 	puff.name = "Rcs%d" % _body.get_child_count()
 	puff.texture = texture
 	puff.flip_v = true
-	puff.offset = Vector2(0, texture.get_height() * 0.5)
+	puff.offset = Vector2(0, texture.get_height() * 0.5 + RCS_GAP / RCS_SCALE)
 	puff.position = at
 	puff.rotation = exhaust.angle() - PI / 2.0
 	puff.scale = Vector2.ONE * RCS_SCALE

@@ -7,7 +7,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 ## [Unreleased]
 
 ### Added
-- **Space: each hull has its own jets**: flames and RCS nozzles placed on each ship's art (twin wing engines on the Falcon, outboard on the Comet, a big central flame plus two small on the Hornet, twin rear jets and prong-tip nozzles on the Gunship).
+- **Space: each hull has its own jets**: flames and RCS nozzles placed on each ship's art (flames flush with the hull, RCS puffs a few pixels out) (twin wing engines on the Falcon, outboard on the Comet, a big central flame plus two small on the Hornet, twin rear jets and prong-tip nozzles on the Gunship).
 - **Space: strafe**: Q / E (LB / RB or the right stick) slide your ship sideways without turning, at 60% of its thrust, with side thrusters drawn. Bots weave in dogfights. The input protocol gains a `strafe` axis (`submit_input(move, jump, fire, strafe, seq)`).
 - **Space: teams, PvP and radar** (#35): colours are teams (auto joins the smallest); shots hit ships of other teams (200 points a kill, shields and spawn protection still count, no friendly fire); bots attack enemy ships near them; the scoreboard groups players by team with totals; a radar top-centre shows ships around you (and the way to far ones) and nearby rocks.
 - **Server-flown bots**: the first person into an empty match picks how many bots (0–7) on the space menu's **Bots** row. The server flies them itself (`ServerBots`: no client, no socket), with a random ship and colour; they give up seats to people and leave with the last one. Works for any game (`GameBase._make_server_bot`); only space has the menu row.
@@ -25,6 +25,7 @@ Each release's section becomes the notes of its GitHub Release (`tools/release_n
 - **Space is the default game**: a page with no `?game=`, a client or server with no `--game`, `tools/run_server.sh` / `run_client.sh` without an argument, and the Docker image without `GAME` all start space (`Protocol.DEFAULT_GAME`). The box arenas stay at `?game=2d` / `?game=3d`.
 
 ### Fixed
+- Going back to ship select could leave input on its way to a ship the server had just removed, which logged a script error on the server (`is_server` on null). The client now stops sending input as it leaves, and the server drops input for a ship that's gone.
 - The exported (release) space server no longer logs "Attempt to disconnect a nonexistent connection" for each asteroid, shot and pickup still alive when it quits, which failed CI's exported-server smoke test. Spawned nodes are now freed before their spawner.
 - `SnapshotClock`'s latency window is 2 s of server time instead of 40 packets, so several players can share one clock.
 - A client that stalls while the first snapshots arrive (loading art on the first spawn) no longer draws everything seconds late for a long time: `SnapshotClock` jumps when it is far behind instead of slewing.

@@ -67,3 +67,13 @@ func test_strafe_is_sanitized_and_times_out() -> void:
 		r.age_input(1.0 / 60.0)
 	assert_eq(r.strafe, 0.0, "a held strafe key is released when input stops")
 	r.free()
+
+
+func test_input_for_a_relay_outside_the_tree_is_dropped() -> void:
+	# A player sent back to select leaves the tree before late input arrives.
+	var r := InputRelay.new()
+	r.submit_input(Vector2.RIGHT, false, true, 1.0, 1)
+	assert_eq(r.move, Vector2.ZERO)
+	assert_false(r.fire)
+	assert_eq(r.last_seq, -1)
+	r.free()

@@ -10,24 +10,25 @@ extends RefCounted
 
 const PACK: String = SpaceShip.PACK
 
-## By hull: main engine flames as Vector3(x, y, scale) (flame centre: the
-## flame is 40 px long, so ~16 px behind the nozzle), and the right-hand RCS
-## nozzles at the nose and at the tail (wingtips).
+## By hull: main engine flames as Vector3(x, y, scale), where (x, y) is the
+## hull's back edge at that engine (measured off the sprite's alpha): the
+## flame hangs from there with no gap. Then the right-hand RCS nozzles at the
+## nose and at the tail (wingtips); their puffs start RCS_GAP out.
 const JETS: Array[Dictionary] = [
 	{   # Falcon: twin flames under the yellow wing engines, pods at the wingtips.
-		"flames": [Vector3(-25, 41, 0.6), Vector3(25, 41, 0.6)],
+		"flames": [Vector3(-25, 25, 0.6), Vector3(25, 25, 0.6)],
 		"nose": Vector2(11, -26), "tail": Vector2(48, 18),
 	},
 	{   # Comet: twin flames under the outboard engines, far-out wingtips.
-		"flames": [Vector3(-33, 47, 0.65), Vector3(33, 47, 0.65)],
+		"flames": [Vector3(-33, 33, 0.65), Vector3(33, 33, 0.65)],
 		"nose": Vector2(6, -27), "tail": Vector2(55, 8),
 	},
 	{   # Hornet: one big central flame and two small ones on the wing strips.
-		"flames": [Vector3(0, 52, 0.9), Vector3(-36, 40, 0.4), Vector3(36, 40, 0.4)],
+		"flames": [Vector3(0, 37, 0.9), Vector3(-36, 27, 0.4), Vector3(36, 27, 0.4)],
 		"nose": Vector2(6, -28), "tail": Vector2(48, 24),
 	},
 	{   # Gunship: twin flames from the tapered rear, nose jets on the prongs.
-		"flames": [Vector3(-11, 52, 0.7), Vector3(11, 52, 0.7)],
+		"flames": [Vector3(-11, 35, 0.7), Vector3(11, 35, 0.7)],
 		"nose": Vector2(15, -37), "tail": Vector2(50, 12),
 	},
 ]
@@ -49,7 +50,8 @@ static func points_down(hull: int) -> bool:
 	return hull == SpaceSim.GUNSHIP
 
 
-## Main flames: Vector3(x, y, scale) in sprite pixels (nose up).
+## Main flames: Vector3(x, y, scale) in sprite pixels (nose up); (x, y) is
+## where the flame's top edge goes.
 static func flames(hull: int) -> Array:
 	return JETS[SpaceSim.sanitize_hull(hull)]["flames"]
 

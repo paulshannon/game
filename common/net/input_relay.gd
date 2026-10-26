@@ -109,7 +109,9 @@ func gate_button(pressed: bool) -> bool:
 # the annotation becomes real if the transport changes to WebRTC.
 @rpc("any_peer", "call_remote", "unreliable_ordered", 0)
 func submit_input(m: Vector2, j: bool, f: bool, s: float, seq: int) -> void:
-	if not multiplayer.is_server():
+	# A player sent back to select leaves the tree at once (GameBase), but
+	# input already on its way can still be delivered to it: drop it.
+	if not is_inside_tree() or not multiplayer.is_server():
 		return
 	# Never trust the caller: the sender must be the peer this player belongs to.
 	if multiplayer.get_remote_sender_id() != owner_peer:
