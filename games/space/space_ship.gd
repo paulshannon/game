@@ -11,6 +11,8 @@ extends Node2D
 
 const PACK: String = "res://assets/kenney/space-shooter-remastered/PNG/"
 const COLORS: Array[String] = ["blue", "green", "orange", "red"]
+## A colour pick meaning "my seat's colour" (player index), the default.
+const COLOR_AUTO: int = -1
 const SHIP_SCALE: float = 0.5
 ## The Gunship hull is Kenney's enemy ship 2, which comes in other colours:
 ## orange players get the black one.
@@ -45,6 +47,7 @@ var rcs_frames: int = 0
 var state := SpaceSim.Ship.new()
 
 var _net := PlayerNet.new(true)
+var _color: int = 0   # index into COLORS
 var _arena: SpaceArena
 
 # Replicated every snapshot (PlayerNet.SYNCED).
@@ -98,7 +101,8 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 			PackedStringArray(["score"]))
 	if use_bot and not server_side:
 		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
-	SpaceSim.set_hull(state, int(data.get("choice", SpaceSim.FALCON)))
+	SpaceSim.set_hull(state, int(data.get("hull", SpaceSim.FALCON)))
+	_color = int(data.get("color", _net.player_index)) % COLORS.size()
 	SpaceSim.respawn(state, data["pos"])
 	net_position = state.position
 	net_rotation = state.rotation
@@ -120,8 +124,13 @@ func hull() -> int:
 	return state.hull
 
 
+## Which of COLORS the player picked (or their seat's, for COLOR_AUTO).
+func color_index() -> int:
+	return _color
+
+
 func color_name() -> String:
-	return COLORS[_net.player_index % COLORS.size()]
+	return COLORS[_color]
 
 
 ## Client: as drawn now. Server: as simulated.

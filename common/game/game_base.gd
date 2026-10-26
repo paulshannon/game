@@ -11,10 +11,11 @@ extends Node
 ##     (world nodes added by subclass)
 
 var config: LaunchConfig
-## Client: what the player picked before joining (e.g. the ship in space), set
-## by main.gd before connecting. Sent to the server, which sanitizes it
-## (_sanitize_choice) and puts it in the spawn data as "choice".
-var join_choice: int = 0
+## Client: what the player picked before joining (in space: ship and colour,
+## {"hull": int, "color": int}), set by main.gd before connecting. Sent to the
+## server, which rebuilds it from known keys (_sanitize_choice) and adds those
+## to the spawn data.
+var join_choice: Dictionary = {}
 
 var players_root: Node
 var spawner: MultiplayerSpawner
@@ -131,14 +132,26 @@ func make_menu() -> GameMenu:
 
 ## What a bot picks for join_choice (smoke tests). Any value is fine: the
 ## server sanitizes it.
-func bot_choice() -> int:
-	return 0
+func bot_choice() -> Dictionary:
+	return {}
 
 
-## Server: turn a client's join_choice into a valid one. Clients can send
-## anything.
-func _sanitize_choice(_choice: int) -> int:
-	return 0
+## Server: a client's join_choice made safe, as small primitives for the
+## spawn data. Clients can send anything: build a fresh Dictionary from the
+## keys the game knows (choice_int), never pass theirs on.
+func _sanitize_choice(_choice: Dictionary, _index: int) -> Dictionary:
+	return {}
+
+
+## Server: an int from a client's join_choice, `fallback` when missing or not
+## a number. Callers still clamp it to their range.
+static func choice_int(choice: Dictionary, key: String, fallback: int) -> int:
+	var v: Variant = choice.get(key)
+	if typeof(v) == TYPE_INT:
+		return int(v)
+	if typeof(v) == TYPE_FLOAT and is_finite(float(v)):
+		return int(clampf(float(v), -1e9, 1e9))
+	return fallback
 
 
 func _spawn_position(_index: int) -> Variant:
@@ -165,7 +178,7 @@ func _on_peer_connected(id: int) -> void:
 
 
 @rpc("any_peer", "call_remote", "reliable", 0)
-func _request_spawn(choice: int) -> void:
+func _request_spawn(choice: Dictionary) -> void:
 	if not config.is_server:
 		return
 	var id: int = multiplayer.get_remote_sender_id()
@@ -175,8 +188,9 @@ func _request_spawn(choice: int) -> void:
 	var index: int = _slots.claim(id)
 	# Golden-ratio hue spacing gives distinct colors for any player count.
 	var hue: float = fmod(index * 0.61803398875, 1.0)
-	spawner.spawn({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index),
-			"choice": _sanitize_choice(choice)})
+	var data: Dictionary = _sanitize_choice(choice, index)
+	data.merge({"id": id, "index": index, "hue": hue, "pos": _spawn_position(index)}, true)
+	spawner.spawn(data)
 	_peers_seen[id] = true
 	_max_simultaneous = maxi(_max_simultaneous, _slots.count())
 	print("[server] peer %d joined slot %d (%d in match)" % [id, index, _slots.count()])

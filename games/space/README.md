@@ -4,9 +4,9 @@
 
 **Core loop:** co-op asteroid shooting. Fly a ship with momentum, shoot asteroids, and pick up power-ups. Large rocks split into two medium rocks, and medium rocks into two small ones; smaller rocks are worth more (20 / 50 / 100). Hitting a rock with your ship destroys it, unless your shield takes the hit. You respawn where you were destroyed after 2 s, blinking and invulnerable for 2 s. Shots don't hurt other players. Score is per player and shown top-right.
 
-**Ships** (#31): pick one of four on the menu before Play (Left/Right, the arrows, or the D-pad); the pick is remembered (`user://space.cfg`). Each handles differently; colour still comes from your slot.
+**Ships** (#31): pick one of four ships and its colour on the menu before Play (`SpaceShipPicker`); both are remembered (`user://space.cfg`). Left/Right (keys, D-pad, stick) or the arrows change the ship; Up moves to the colour button, where Left/Right change the colour. Colours are blue, green, orange and red, or **auto** (the default): your seat's colour, so players who don't pick still differ. Anyone may pick a colour someone else has; the labels still tell you apart. Your colour also tints your shots and your score.
 
-![Picking the Gunship on the menu](../../docs/screenshots/space-ship-picker.png)
+![Picking a green Hornet on the menu](../../docs/screenshots/space-ship-picker.png)
 
 | Ship | Art | Thrust | Top speed | Turn | Fire every |
 |---|---|---|---|---|---|
@@ -15,7 +15,7 @@
 | **Hornet**: turns tightest | `playerShip3` | 520 | 420 | 5.6 rad/s | 0.22 s |
 | **Gunship**: fires fastest, heavy | `Enemies/enemy*2` (black for orange players) | 440 | 360 | 3.4 rad/s | 0.15 s |
 
-All hulls are the same size to hit, and rapid fire is 0.1 s for all. The choice travels in the join request (`GameBase.join_choice`): the server claims your seat when you connect, but spawns your ship only when the request arrives, so the spawn data carries the hull (`"choice"`, clamped by `SpaceSim.sanitize_hull`) and every peer builds the right ship from the first frame.
+All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick travels in the join request (`GameBase.join_choice`, `{"hull", "color"}`): the server claims your seat when you connect, but spawns your ship only when the request arrives. `SpaceArena._sanitize_choice` rebuilds it from those two keys (hull clamped, auto or out-of-range colour → the seat's), so the spawn data carries `"hull"` and `"color"` and every peer builds the right ship from the first frame.
 
 **Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving. The server keeps at least 6 rocks within 1000 px of every ship (`SpaceField`), bringing new ones in just off screen (800 px out) heading roughly towards that ship, and removes rocks more than 1800 px from every ship, so the field costs the same however far apart players fly. A player who joins late spawns next to a ship already in the match. Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped, so a dropped rock never explodes on anyone's screen. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
 
@@ -55,7 +55,7 @@ All are CC0; see `CREDITS.md`.
 
 Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts and fires. On top of the usual "everyone moved":
 - the **server** checks that every player fired and that rocks were destroyed;
-- **each client** checks that it got the hull it asked for (bots pick one at random), drew its own shots, drew a rock explode, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
+- **each client** checks that it got the hull and colour it asked for (bots pick both at random, auto included), drew its own shots, drew a rock explode, drew its own ship's RCS thrusters, and received a non-zero score from the server (any ship's: whether one particular bot lands a hit in a short run is chance).
 
 | File | Runs on | Does |
 |---|---|---|
@@ -68,7 +68,8 @@ Bots use `SpaceBot`, which turns toward the nearest asteroid it can see, thrusts
 | `space_fx.gd` | client | ghosts, explosion puffs, sounds (silent when headless) |
 | `space_scoreboard.gd` | client | scores, top-right |
 | `space_bot.gd` | client (bots) | aiming smoke-test pilot |
-| `space_menu.gd` | client | the main menu (`GameMenu` subclass): ship picker, Play, and its Controls page |
+| `space_menu.gd` | client | the main menu (`GameMenu` subclass): Play, and its Controls page |
+| `space_ship_picker.gd` | client | the menu's ship and colour picker; remembers the pick |
 | `space_ui.gd` | client | menu theme built in code from the Kenney UI pack: 9-slice panel and buttons, Kenney Future font |
 | `starfield.gd` | client | procedural twinkling star field (menu background; parallax arena backdrop) |
 

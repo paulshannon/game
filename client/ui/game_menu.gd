@@ -32,8 +32,8 @@ func request_play() -> void:
 
 
 ## What the player picked to join with (GameBase.join_choice), e.g. a ship.
-func choice() -> int:
-	return 0
+func choice() -> Dictionary:
+	return {}
 
 
 ## Subclass hook: update the status line and Play label.

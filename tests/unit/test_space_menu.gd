@@ -90,3 +90,26 @@ func test_controls_page_opens_and_closes() -> void:
 	assert_true(main.visible, "the menu comes back on its main page")
 	m.free()
 	space.free()
+
+
+const PICKS: String = "user://test_space_picks.cfg"
+
+
+func test_picker_cycles_ship_and_colour_and_remembers() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PICKS))
+	var p := SpaceShipPicker.new(PICKS)
+	assert_eq(p.choice(), {"hull": SpaceSim.FALCON, "color": SpaceShip.COLOR_AUTO}, "defaults")
+	p.pick_hull(-1)
+	assert_eq(p.hull, SpaceSim.HULLS.size() - 1, "wraps round backwards")
+	p.pick_color(1)
+	assert_eq(p.color, 0, "after auto comes the first colour")
+	for i: int in SpaceShip.COLORS.size():
+		p.pick_color(1)
+	assert_eq(p.color, SpaceShip.COLOR_AUTO, "and back round to auto")
+	p.pick_color(-1)
+	assert_eq((p.get_node("Colour/Cycle") as Button).text, "Colour: red")
+	var again := SpaceShipPicker.new(PICKS)
+	assert_eq(again.choice(), p.choice(), "restored from the save")
+	p.free()
+	again.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(PICKS))
