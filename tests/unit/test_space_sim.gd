@@ -105,16 +105,6 @@ func test_shot_expires_by_age() -> void:
 	assert_true(SpaceSim.shot_expired(SpaceSim.SHOT_LIFE))
 
 
-func test_split_gives_two_faster_smaller_pieces() -> void:
-	var v := Vector2(50, 0)
-	var parts: Array[Vector2] = SpaceSim.split_velocities(SpaceSim.LARGE, v)
-	assert_eq(parts.size(), 2)
-	for p: Vector2 in parts:
-		assert_near(p.length(), 50.0 * SpaceSim.SPLIT_SPEEDUP, 0.01)
-	assert_true(parts[0].y * parts[1].y < 0.0, "one each side")
-	assert_true(SpaceSim.split_velocities(SpaceSim.SMALL, v).is_empty())
-
-
 func test_smaller_asteroids_are_worth_more() -> void:
 	assert_true(SpaceSim.asteroid_points(SpaceSim.SMALL) > SpaceSim.asteroid_points(SpaceSim.MEDIUM))
 	assert_true(SpaceSim.asteroid_points(SpaceSim.MEDIUM) > SpaceSim.asteroid_points(SpaceSim.LARGE))

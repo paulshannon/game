@@ -7,10 +7,10 @@ extends RefCounted
 ## Asteroids, shots and pickups move on paths fixed by their spawn data
 ## (origin, velocity, birth time), so any peer can work out where one is at
 ## any server time without per-tick replication: shots fly straight
-## (shot_position), asteroids fall towards the star (SpaceStar.Fall).
+## (shot_position), asteroids and pickups orbit the star
+## (SpaceStar.orbit_position) in belts (SpaceBelts).
 ##
-## Space is unbounded: nothing has an edge to bounce off. SpaceField decides
-## where new rocks come in around the ships and which ones are left behind.
+## Space is unbounded: nothing has an edge to bounce off.
 
 # --- ships --------------------------------------------------------------------
 
@@ -65,8 +65,6 @@ const MEDIUM: int = 1
 const LARGE: int = 2
 const ASTEROID_RADIUS: Array[float] = [13.0, 21.0, 40.0]
 const ASTEROID_POINTS: Array[int] = [100, 50, 20]
-const SPLIT_ANGLE: float = 0.6        # children fly off this far either side
-const SPLIT_SPEEDUP: float = 1.35
 
 # --- pickups ------------------------------------------------------------------
 
@@ -283,17 +281,6 @@ static func asteroid_radius(size: int) -> float:
 
 static func asteroid_points(size: int) -> int:
 	return ASTEROID_POINTS[clampi(size, SMALL, LARGE)]
-
-
-## Velocities of the pieces a destroyed asteroid breaks into (empty for the
-## smallest size): two faster pieces either side of its heading.
-static func split_velocities(size: int, velocity: Vector2) -> Array[Vector2]:
-	var out: Array[Vector2] = []
-	if size <= SMALL:
-		return out
-	out.append(velocity.rotated(SPLIT_ANGLE) * SPLIT_SPEEDUP)
-	out.append(velocity.rotated(-SPLIT_ANGLE) * SPLIT_SPEEDUP)
-	return out
 
 
 ## Whether something of `radius` moving from `from` to `to` in one tick

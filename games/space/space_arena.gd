@@ -1,9 +1,9 @@
 class_name SpaceArena
 extends GameBase
-## Space: co-op asteroid shooting in an unbounded star field (the camera
-## follows your ship; SpaceField keeps rocks coming around every ship). Ships with momentum
-## (SpaceShip) shoot asteroids that split into smaller, more valuable pieces;
-## some drop pickups. Rules are SpaceSim, run on the server by SpaceDirector.
+## Space: team asteroid shooting and PvP round a star (SpaceStar), in an
+## unbounded star field (the camera follows your ship). Rocks orbit in belts
+## (SpaceBelts). Ships with momentum (SpaceShip) shoot asteroids that split
+## into smaller, more valuable pieces; some drop pickups. Rules are SpaceSim, run on the server by SpaceDirector.
 ## Its main menu is SpaceMenu.
 ##
 ## Node layout on top of GameBase's (identical on every peer where replicated):
@@ -278,7 +278,6 @@ func smoke_report() -> Dictionary:
 		report["ok"] = bool(report["ok"]) and director.pvp_hits > 0 \
 				and people_strafed >= config.expect_peers and energy_used > 0.0 and energy_gained > 0.0
 		report["asteroids_destroyed"] = director.asteroids_destroyed
-		report["asteroids_dropped"] = director.asteroids_dropped
 		report["ships_destroyed"] = director.ships_destroyed
 		report["pickups_taken"] = director.pickups_taken
 		report["scores"] = director.scores

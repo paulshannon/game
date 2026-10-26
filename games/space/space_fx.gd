@@ -11,9 +11,8 @@ const PUFF_FIRST: int = 8    # spaceEffects_008..016: round smoke puffs, small t
 const PUFF_LAST: int = 16
 
 ## Effects farther than this from the camera are skipped: off screen, and in
-## unbounded space possibly thousands of pixels away. That includes rocks the
-## server drops for being far from every ship (SpaceField.STRAY_DISTANCE is
-## larger), which would otherwise "explode" when their ghost ends.
+## unbounded space possibly thousands of pixels away (another ship shooting
+## rocks on the far side of a belt).
 const EFFECT_DISTANCE: float = 1200.0
 
 const SOUNDS: Dictionary = {
