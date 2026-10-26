@@ -33,12 +33,14 @@
 
 ![Picking a green Hornet on the menu](../../docs/screenshots/space-ship-picker.png)
 
-| Ship | Art | Thrust | Top speed | Turn | Fire every |
+| Ship | Art | Thrust | Cruise speed | Turn | Fire every |
 |---|---|---|---|---|---|
-| **Falcon**: all-rounder | `playerShip1` | 560 | 440 | 4.2 rad/s | 0.25 s |
-| **Comet**: fastest, slow to fire | `playerShip2` | 700 | 540 | 3.8 rad/s | 0.32 s |
-| **Hornet**: turns tightest | `playerShip3` | 520 | 420 | 5.6 rad/s | 0.22 s |
-| **Gunship**: fires fastest, heavy | `Enemies/enemy*2` (black for orange players) | 440 | 360 | 3.4 rad/s | 0.15 s |
+| **Falcon**: all-rounder | `playerShip1` | 560 | 1120 | 4.2 rad/s | 0.25 s |
+| **Comet**: fastest, slow to fire | `playerShip2` | 700 | 1400 | 3.8 rad/s | 0.32 s |
+| **Hornet**: turns tightest | `playerShip3` | 520 | 1040 | 5.6 rad/s | 0.22 s |
+| **Gunship**: fires fastest, heavy | `Enemies/enemy*2` (black for orange players) | 440 | 880 | 3.4 rad/s | 0.15 s |
+
+There's no speed cap: drag (0.5/s) is the only limit, so a ship levels off at thrust ÷ 0.5 (`SpaceSim.cruise_speed`) under full throttle, and gravity or strafing can take it past that.
 
 All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick travels in the join request (`GameBase.join_choice`, `{"hull", "color"}`): the server claims your seat when you connect, but spawns your ship only when the request arrives. `SpaceArena._sanitize_choice` rebuilds it from those two keys (hull clamped, auto or out-of-range colour → the seat's), so the spawn data carries `"hull"` and `"color"` and every peer builds the right ship from the first frame.
 
@@ -52,7 +54,7 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 
 ![Each hull thrusting and strafing right: Falcon, Comet, Hornet, Gunship](../../docs/screenshots/space-hull-jets.png)
 
-**Strafe:** Q / E slide the ship left / right without turning it (LB / RB or the right stick on a controller), at 60% of the hull's thrust (`SpaceSim.STRAFE_FACTOR`), still capped at the hull's top speed. Handy for dodging while keeping your guns on a target. Bots weave from side to side in a dogfight. It travels as one more input axis (`InputRelay.strafe`, -1..1, sanitized and released with the rest after `INPUT_TIMEOUT`); the box games ignore it. No touch control for it yet.
+**Strafe:** Q / E slide the ship left / right without turning it (LB / RB or the right stick on a controller), at 60% of the hull's thrust (`SpaceSim.STRAFE_FACTOR`). Handy for dodging while keeping your guns on a target. Bots weave from side to side in a dogfight. It travels as one more input axis (`InputRelay.strafe`, -1..1, sanitized and released with the rest after `INPUT_TIMEOUT`); the box games ignore it. No touch control for it yet.
 
 **Controls:** Left/Right (A/D) turn, Up (W) thrust, Down (S) brake, Q/E strafe, Space fire, Esc ship select; on a controller, left stick or D-pad, LB/RB or the right stick to strafe, A or RT to fire, Start for ship select. All of them can be remapped on the menu's **Controls** page (below). On touch, the stick's left/right turns and pushing it up thrusts; Fire is bottom-right, Menu (ship select) top-left. Controls are the same `move` vector as the box games plus a `fire` action and the `strafe` axis, so the protocol and `InputRelay` stay generic. The relay sends only the game's own button (`GameBase.action_button()`), and ignores a key still held from pressing Play until it's released.
 

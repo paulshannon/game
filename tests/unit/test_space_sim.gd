@@ -43,10 +43,14 @@ func test_momentum_carries_on_after_thrust() -> void:
 	assert_true(s.velocity.length() > speed * 0.6, "but keeps most of its momentum")
 
 
-func test_speed_is_capped() -> void:
+func test_no_speed_cap_drag_levels_it_off() -> void:
 	var s := _ship()
-	_run(s, Vector2.UP, 3.0)
-	assert_true(s.velocity.length() <= SpaceSim.MAX_SPEED + 0.001)
+	for i: int in 20 * 60:
+		s.energy = SpaceStar.ENERGY_MAX   # this is about drag, not the tank
+		SpaceSim.step_ship(s, Vector2.UP, false, DT)
+	var cruise: float = SpaceSim.cruise_speed(SpaceSim.THRUST)
+	assert_near(s.velocity.length(), cruise, cruise * 0.01, "where drag balances thrust")
+	assert_true(s.velocity.length() > 1000.0, "well past the old 440 cap")
 
 
 func test_turning_rotates_without_moving() -> void:
@@ -160,9 +164,10 @@ func test_overlap() -> void:
 
 
 func test_fast_shot_cannot_step_over_a_small_rock() -> void:
-	# One tick of a shot from a ship at full speed (~21 px), passing a small
-	# rock 15 px off-centre: both end points miss, the path doesn't.
-	var step: float = (SpaceSim.SHOT_SPEED + SpaceSim.MAX_SPEED) * DT
+	# One tick of a shot from the fastest ship at cruise speed (~37 px),
+	# passing a small rock 15 px off-centre: both end points miss, the path
+	# doesn't.
+	var step: float = (SpaceSim.SHOT_SPEED + SpaceSim.cruise_speed(700.0)) * DT
 	var from := Vector2(-step * 0.5, 15)
 	var to := from + Vector2(step, 0)
 	var r: float = SpaceSim.asteroid_radius(SpaceSim.SMALL)
@@ -235,7 +240,7 @@ func test_four_hulls_each_best_at_something() -> void:
 	SpaceSim.set_hull(nimble, SpaceSim.HORNET)
 	SpaceSim.set_hull(gunner, SpaceSim.GUNSHIP)
 	for s: SpaceSim.Ship in [fastest, nimble, gunner, falcon]:
-		assert_true(fastest.max_speed >= s.max_speed and fastest.thrust >= s.thrust)
+		assert_true(fastest.thrust >= s.thrust, "most thrust: the highest cruise speed")
 		assert_true(nimble.turn_speed >= s.turn_speed)
 		assert_true(gunner.fire_cooldown <= s.fire_cooldown)
 
@@ -243,9 +248,10 @@ func test_four_hulls_each_best_at_something() -> void:
 func test_hull_handling_is_used_by_step() -> void:
 	var comet := _ship()
 	SpaceSim.set_hull(comet, SpaceSim.COMET)
+	var falcon := _ship()
 	_run(comet, Vector2.UP, 3.0)
-	assert_true(comet.velocity.length() > SpaceSim.MAX_SPEED, "faster than the all-rounder's cap")
-	assert_true(comet.velocity.length() <= comet.max_speed + 0.001)
+	_run(falcon, Vector2.UP, 3.0)
+	assert_true(comet.velocity.length() > falcon.velocity.length(), "more thrust, faster")
 
 	var hornet := _ship()
 	SpaceSim.set_hull(hornet, SpaceSim.HORNET)
@@ -316,6 +322,9 @@ func test_strafe_is_weaker_than_thrust_and_capped() -> void:
 	assert_eq(side.strafing, -1)
 	SpaceSim.step_ship(side, Vector2.ZERO, false, DT, INF)
 	assert_eq(side.strafing, 0, "a non-finite strafe is ignored")
-	for i: int in 600:
+	for i: int in 1200:
 		SpaceSim.step_ship(side, Vector2.UP, false, DT, 1.0)
-	assert_true(side.velocity.length() <= side.max_speed + 0.001, "thrust + strafe still capped")
+	# Thrust and strafe together push sqrt(1 + 0.6²) times as hard; drag
+	# still levels that off.
+	var limit: float = SpaceSim.cruise_speed(side.thrust) * sqrt(1.0 + SpaceSim.STRAFE_FACTOR * SpaceSim.STRAFE_FACTOR)
+	assert_true(side.velocity.length() <= limit * 1.001, "drag bounds thrust + strafe too")

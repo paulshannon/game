@@ -18,10 +18,11 @@ extends RefCounted
 const TURN_SPEED: float = 4.2         # rad/s at full left/right
 const THRUST: float = 560.0           # px/s² at full forward
 const REVERSE_THRUST: float = 240.0   # px/s² at full back (a brake, mostly)
-const MAX_SPEED: float = 440.0
 ## Sideways thrust (strafe), as a share of the hull's forward thrust.
 const STRAFE_FACTOR: float = 0.6
-const DRAG: float = 0.5               # 1/s: coasting keeps momentum, but not forever
+## 1/s: coasting keeps momentum, but not forever. It's also the only speed
+## limit: a ship levels off where drag balances its thrust (cruise_speed).
+const DRAG: float = 0.5
 const SHIP_RADIUS: float = 18.0
 
 const RESPAWN_TIME: float = 2.0
@@ -47,13 +48,13 @@ const GUNSHIP: int = 3
 ## By hull: name and one line for the menu, and handling. Collision size and
 ## shots are the same for every hull, so none is harder to hit.
 const HULLS: Array[Dictionary] = [
-	{"name": "Falcon", "blurb": "All-rounder", "thrust": THRUST, "max_speed": MAX_SPEED,
+	{"name": "Falcon", "blurb": "All-rounder", "thrust": THRUST,
 		"turn": TURN_SPEED, "cooldown": FIRE_COOLDOWN},
-	{"name": "Comet", "blurb": "Fastest, slow to fire", "thrust": 700.0, "max_speed": 540.0,
+	{"name": "Comet", "blurb": "Fastest, slow to fire", "thrust": 700.0,
 		"turn": 3.8, "cooldown": 0.32},
-	{"name": "Hornet", "blurb": "Turns tightest", "thrust": 520.0, "max_speed": 420.0,
+	{"name": "Hornet", "blurb": "Turns tightest", "thrust": 520.0,
 		"turn": 5.6, "cooldown": 0.22},
-	{"name": "Gunship", "blurb": "Fires fastest, heavy", "thrust": 440.0, "max_speed": 360.0,
+	{"name": "Gunship", "blurb": "Fires fastest, heavy", "thrust": 440.0,
 		"turn": 3.4, "cooldown": 0.15},
 ]
 
@@ -85,7 +86,6 @@ class Ship:
 	## Which of HULLS (set_hull), and its handling.
 	var hull: int = FALCON
 	var thrust: float = THRUST
-	var max_speed: float = MAX_SPEED
 	var turn_speed: float = TURN_SPEED
 	var fire_cooldown: float = FIRE_COOLDOWN
 	var position: Vector2 = Vector2.ZERO
@@ -122,9 +122,15 @@ static func set_hull(s: Ship, hull: int) -> void:
 	s.hull = sanitize_hull(hull)
 	var h: Dictionary = HULLS[s.hull]
 	s.thrust = float(h["thrust"])
-	s.max_speed = float(h["max_speed"])
 	s.turn_speed = float(h["turn"])
 	s.fire_cooldown = float(h["cooldown"])
+
+
+## The speed a ship levels off at under full forward thrust and nothing
+## else: drag (DRAG * v) balances thrust. There's no hard cap; gravity,
+## strafing and the momentum it carries in can take it past this.
+static func cruise_speed(thrust: float) -> float:
+	return thrust / DRAG
 
 
 static func facing(s: Ship) -> Vector2:
@@ -169,7 +175,7 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float, strafe: 
 	# Right of the nose: facing turned a quarter clockwise (y is down).
 	s.velocity += facing(s).rotated(PI / 2.0) * side * s.thrust * STRAFE_FACTOR * delta
 	s.velocity += SpaceStar.pull(s.position) * delta
-	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(s.max_speed)
+	s.velocity *= exp(-DRAG * delta)
 	s.position += s.velocity * delta
 
 	if fire and s.cooldown <= 0.0 and s.energy >= SpaceStar.SHOT_COST:
