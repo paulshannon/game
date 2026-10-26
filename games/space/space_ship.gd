@@ -354,7 +354,10 @@ func _build_visuals() -> void:
 
 	_label = Label.new()
 	_label.text = "P%d" % (_net.player_index + 1)
-	_label.position = Vector2(-40, -48)
+	# Scaled up against the camera zoom so it stays readable; its bottom
+	# edge stays just above the ship.
+	_label.scale = Vector2.ONE / SpaceArena.ZOOM
+	_label.position = Vector2(-40.0 / SpaceArena.ZOOM, -25.0 - 23.0 / SpaceArena.ZOOM)
 	_label.custom_minimum_size = Vector2(80, 0)
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_label.add_theme_color_override("font_color", Color(SpaceUi.STAR_WHITE, 0.8))

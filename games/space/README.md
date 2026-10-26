@@ -21,7 +21,7 @@
 - **PvP:** shots hit ships of other teams, never your own team (no friendly fire). A shield takes the hit; spawn protection (blinking) lets shots fly through. Shooting a ship down scores **200** (`SpaceSim.SHIP_KILL_POINTS`). The server decides every hit (`SpaceDirector`, swept like rock hits); a shot's team travels in its spawn data, so it counts even if its shooter has left.
 - **Bots** attack enemy ships within 500 px before rocks (`SpaceBot`), so a lone player with bots has a fight on. Every other bot (by peer id) is a **raider**: it hunts the nearest enemy ship anywhere on the map (up to 700 px/s when it's far off), since the teams start at bases across the map.
 - **Scoreboard:** grouped by team, each team's total first, best team on top.
-- **Radar** (`SpaceRadar`, top-centre): your heading as an arrow in the middle; other ships as dots in their team's colour (allies ringed, enemies solid) within 1500 px, and pinned to the rim beyond that, so you can always find the others; rocks in range as specks.
+- **Radar** (`SpaceRadar`, top-centre): your heading as an arrow in the middle; other ships as dots in their team's colour (allies ringed, enemies solid) within 2500 px, and pinned to the rim beyond that, so you can always find the others; rocks in range as specks.
 
 ![Teams, scoreboard and radar](../../docs/screenshots/space-teams-radar.png)
 
@@ -64,7 +64,7 @@ All hulls are the same size to hit, and rapid fire is 0.1 s for all. The pick tr
 
 ![Spawning beside the blue starbase; the radar shows the other bases on its rim](../../docs/screenshots/space-starbase.png)
 
-**Infinite map** (#29): space has no edges. The camera follows your ship, and the star field scrolls in three parallax layers so you can see yourself moving.  Effects (explosions, other players' shot sounds) more than 1200 px from your camera are skipped. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
+**Infinite map** (#29): space has no edges. The camera follows your ship, zoomed out to 0.6 (`SpaceArena.ZOOM`), and the star field scrolls in three parallax layers so you can see yourself moving.  Effects (explosions, other players' shot sounds) more than 1200 px (at zoom 1, so 2000 px at 0.6) from your camera are skipped. Positions are 32-bit floats: precision stays well under a pixel for the first ~10⁶ px, about 40 minutes of flying flat out in one direction.
 
 **Pickups** (15% chance per destroyed rock, gone after 12 s): **bolt** = rapid fire for 8 s, **shield** = absorbs one hit, **star** = +250 points.
 

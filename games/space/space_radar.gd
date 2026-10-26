@@ -9,7 +9,7 @@ extends CanvasLayer
 ## and nothing while your ship isn't in the match.
 
 const RADIUS: float = 78.0             # on screen, px
-const RANGE: float = 1500.0            # world px from your ship to the rim (~2 screens)
+const RANGE: float = 2500.0            # world px from your ship to the rim (~2 screens at SpaceArena.ZOOM)
 const TOP: float = 14.0                # gap above it
 
 var arena: SpaceArena

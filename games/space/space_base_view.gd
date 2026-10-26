@@ -9,6 +9,8 @@ const STATION: String = "res://assets/kenney/space-shooter-extension/PNG/Sprites
 const STATION_SCALE: float = 1.2
 const RING_RADIUS: float = 190.0
 const DASHES: int = 24
+## World pixels: about 22 on screen at SpaceArena.ZOOM.
+const LABEL_SIZE: int = 36
 
 var clock: SnapshotClock
 var arena: SpaceArena
@@ -62,9 +64,9 @@ func _draw() -> void:
 			draw_arc(at, RING_RADIUS, a, a + TAU / DASHES * 0.55, 6, Color(color, 0.7), 3.0)
 		var label: String = "%s base" % SpaceShip.COLORS[team].to_upper()
 		var font: Font = SpaceUi.font()
-		var width: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 22).x
-		draw_string(font, at + Vector2(-width * 0.5, RING_RADIUS + 34.0), label,
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color(color, 0.85))
+		var width: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE).x
+		draw_string(font, at + Vector2(-width * 0.5, RING_RADIUS + LABEL_SIZE * 1.4), label,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SIZE, Color(color, 0.85))
 
 
 static func team_color(team: int) -> Color:

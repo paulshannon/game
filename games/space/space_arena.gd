@@ -19,6 +19,8 @@ extends GameBase
 ## screens (they can't be remapped).
 ## Server bots each smoke-test client asks for.
 const SMOKE_BOTS: int = 2
+## Camera zoom: below 1 shows more of space (0.6 ≈ 2.8× the area of 1:1).
+const ZOOM: float = 0.6
 const TOUCH_HELP: String = "Touch: the stick's left/right turns, pushing it up thrusts; tap Fire to shoot."
 
 var entities_root: Node
@@ -98,6 +100,7 @@ func _build_client_world() -> void:
 
 	camera = Camera2D.new()
 	camera.name = "Camera"
+	camera.zoom = Vector2.ONE * ZOOM
 	add_child(camera)
 	camera.make_current()
 
@@ -231,7 +234,8 @@ func _process(delta: float) -> void:
 		var own: Node2D = local_player() as Node2D
 		if own != null:
 			camera.position = own.position
-		_stars.scroll = camera.position
+		# In screen pixels, so the parallax keeps pace with the zoomed world.
+		_stars.scroll = camera.position * ZOOM
 	if config.is_server or config.run_seconds <= 0.0 or not Net.is_online():
 		return
 	var own: Node = local_player()
