@@ -80,8 +80,11 @@ var pickups: int = 0:
 		if not _net.server_side:
 			_pickup_timeline.push(net_time, v)
 
-# Replicated on change: only the scoreboard reads it, timing doesn't matter.
+# Replicated on change: the scoreboard and energy bar read them, timing
+# doesn't matter.
 var score: int = 0
+## Energy, whole units (0..SpaceStar.ENERGY_MAX): the owner's energy bar.
+var energy: int = int(SpaceStar.ENERGY_MAX)
 
 # Client: flags and pickups as of the render time being drawn.
 var _flag_timeline := StateTimeline.new(ALIVE)
@@ -101,13 +104,13 @@ func setup(data: Dictionary, server_side: bool, use_bot: bool, arena: SpaceArena
 	if not server_side:
 		_net.use_clock(arena.clock)   # same timeline as shots and asteroids
 	_net.setup(self, data, server_side, use_bot, PackedStringArray(["flags", "pickups"]),
-			PackedStringArray(["score"]))
+			PackedStringArray(["score", "energy"]))
 	if use_bot and not server_side:
 		_net.relay.make_bot = func() -> BotInput: return SpaceBot.new(self, arena)
 	SpaceSim.set_hull(state, int(data.get("hull", SpaceSim.FALCON)))
 	_color = int(data.get("color", _net.player_index)) % COLORS.size()
 	state.team = _color
-	SpaceSim.respawn(state, data["pos"])
+	SpaceSim.respawn(state, SpaceStar.safe_spot(data["pos"]))
 	net_position = state.position
 	net_rotation = state.rotation
 	position = state.position
@@ -170,17 +173,22 @@ func _physics_process(delta: float) -> void:
 	if not _net.server_side:
 		return
 	var was_alive: bool = state.alive
+	var used: float = state.energy_used
+	var gained: float = state.energy_gained
 	if SpaceSim.step_ship(state, _net.relay.move, _net.relay.fire, delta, _net.relay.strafe):
 		_arena.director.fire(self)
+	_arena.energy_used += state.energy_used - used
+	_arena.energy_gained += state.energy_gained - gained
 	if state.strafing != 0:
 		strafe_time += delta
 		_arena.strafers[peer_id()] = true
 	if was_alive and state.alive:
 		traveled += state.velocity.length() * delta
 	# Where it was destroyed: in unbounded space a fixed start point could be
-	# any distance from the others by now. Spawn protection covers the rocks.
+	# any distance from the others by now. Spawn protection covers the rocks;
+	# safe_spot moves it out of the star's reach (it may have died in it).
 	if SpaceSim.can_respawn(state):
-		SpaceSim.respawn(state, state.position)
+		SpaceSim.respawn(state, SpaceStar.safe_spot(state.position))
 	publish()
 
 
@@ -191,6 +199,7 @@ func publish() -> void:
 	net_rotation = state.rotation
 	position = state.position
 	score = state.score
+	energy = ceili(state.energy)
 	var f: int = 0
 	if state.alive:
 		f |= ALIVE

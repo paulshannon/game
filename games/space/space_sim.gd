@@ -4,9 +4,10 @@ extends RefCounted
 ## split, pickups and score. No nodes, no networking: the server runs these,
 ## tests call them directly, and client-side prediction could reuse them.
 ##
-## Asteroids, shots and pickups move on fixed paths from their spawn data
+## Asteroids, shots and pickups move on paths fixed by their spawn data
 ## (origin, velocity, birth time), so any peer can work out where one is at
-## any server time without per-tick replication: see asteroid_position().
+## any server time without per-tick replication: shots fly straight
+## (shot_position), asteroids fall towards the star (SpaceStar.Fall).
 ##
 ## Space is unbounded: nothing has an edge to bounce off. SpaceField decides
 ## where new rocks come in around the ships and which ones are left behind.
@@ -105,6 +106,11 @@ class Ship:
 	var shield: bool = false
 	var rapid_for: float = 0.0
 	var score: int = 0
+	## Engines and guns spend it; it recharges near the star (SpaceStar).
+	var energy: float = SpaceStar.ENERGY_MAX
+	## Totals, for the smoke test.
+	var energy_used: float = 0.0
+	var energy_gained: float = 0.0
 
 
 ## A valid hull for any value a client sends.
@@ -127,7 +133,10 @@ static func facing(s: Ship) -> Vector2:
 
 ## One tick. move.x turns, -move.y thrusts (up = forward, down = brake), the
 ## same stick or keys as the box games; `strafe` (-1 left .. 1 right) pushes
-## sideways. Returns true when the ship fires.
+## sideways. Engines and guns cost energy (SpaceStar): the engines get only
+## the power the pool can pay for this tick, and a shot needs a full
+## SHOT_COST. The star's gravity pulls every tick. Returns true when the ship
+## fires.
 static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float, strafe: float = 0.0) -> bool:
 	s.cooldown = maxf(s.cooldown - delta, 0.0)
 	s.protected_for = maxf(s.protected_for - delta, 0.0)
@@ -137,25 +146,42 @@ static func step_ship(s: Ship, move: Vector2, fire: bool, delta: float, strafe: 
 		_stop_thrusters(s)
 		return false
 
+	var gained: float = minf(SpaceStar.recharge_rate(s.position) * delta, SpaceStar.ENERGY_MAX - s.energy)
+	s.energy += gained
+	s.energy_gained += gained
+
 	var m: Vector2 = ArenaSim.sanitize_move(move)
-	s.rotation = wrapf(s.rotation + m.x * s.turn_speed * delta, -PI, PI)
+	s.rotation = wrapf(s.rotation + m.x * s.turn_speed * delta, -PI, PI)   # turning is free
 	var push: float = -m.y
+	var side: float = clampf(strafe, -1.0, 1.0) if is_finite(strafe) else 0.0
+	# Run the engines on what the pool can pay for: all of it, some, or none.
+	var need: float = SpaceStar.engine_cost(push, side) * delta
+	var power: float = 1.0 if need <= s.energy else s.energy / need
+	_spend(s, need * power)
+	push *= power
+	side *= power
 	s.thrusting = push > 0.1
 	s.braking = push < -0.1
 	s.turning = 0 if absf(m.x) < 0.1 else (1 if m.x > 0.0 else -1)
 	var accel: float = s.thrust if push > 0.0 else REVERSE_THRUST
 	s.velocity += facing(s) * push * accel * delta
-	var side: float = clampf(strafe, -1.0, 1.0) if is_finite(strafe) else 0.0
 	s.strafing = 0 if absf(side) < 0.1 else (1 if side > 0.0 else -1)
 	# Right of the nose: facing turned a quarter clockwise (y is down).
 	s.velocity += facing(s).rotated(PI / 2.0) * side * s.thrust * STRAFE_FACTOR * delta
+	s.velocity += SpaceStar.pull(s.position) * delta
 	s.velocity = (s.velocity * exp(-DRAG * delta)).limit_length(s.max_speed)
 	s.position += s.velocity * delta
 
-	if fire and s.cooldown <= 0.0:
+	if fire and s.cooldown <= 0.0 and s.energy >= SpaceStar.SHOT_COST:
 		s.cooldown = minf(RAPID_COOLDOWN, s.fire_cooldown) if s.rapid_for > 0.0 else s.fire_cooldown
+		_spend(s, SpaceStar.SHOT_COST)
 		return true
 	return false
+
+
+static func _spend(s: Ship, amount: float) -> void:
+	s.energy = maxf(s.energy - amount, 0.0)
+	s.energy_used += amount
 
 
 static func _stop_thrusters(s: Ship) -> void:
@@ -178,6 +204,7 @@ static func respawn(s: Ship, at: Vector2) -> void:
 	s.shield = false
 	s.rapid_for = 0.0
 	s.cooldown = 0.0
+	s.energy = SpaceStar.ENERGY_MAX
 
 
 static func can_be_hit(s: Ship) -> bool:
@@ -214,11 +241,16 @@ static func hit_ship(s: Ship) -> bool:
 		s.shield = false
 		s.protected_for = SHIELD_GRACE
 		return false
+	destroy(s)
+	return true
+
+
+## Destroyed outright, shield or not (flying into the star).
+static func destroy(s: Ship) -> void:
 	s.alive = false
 	_stop_thrusters(s)
 	s.respawn_in = RESPAWN_TIME
 	s.velocity = Vector2.ZERO
-	return true
 
 
 ## Where a shot starts and how it flies (it keeps the ship's momentum).
@@ -237,12 +269,6 @@ static func shot_position(origin: Vector2, velocity: Vector2, age: float) -> Vec
 static func shot_expired(age: float) -> bool:
 	return age >= SHOT_LIFE
 
-
-## An asteroid drifts in a straight line forever (until it's shot, or left so
-## far behind that SpaceField removes it). Computed from its spawn data, so it
-## needs no state and no replication.
-static func asteroid_position(origin: Vector2, velocity: Vector2, age: float) -> Vector2:
-	return origin + velocity * age
 
 
 static func asteroid_radius(size: int) -> float:
