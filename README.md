@@ -6,6 +6,8 @@ A working starting point for **multiplayer browser game prototypes** in Godot 4.
 - **Server-authoritative:** clients send input; a headless dedicated server simulates and replicates state; clients interpolate.
 - **Verified by script:** one command compiles every script, runs unit tests, and runs a real server with bot clients over WebSockets.
 
+The shared framework is also published on its own as [paulshannon/game-starter](https://github.com/paulshannon/game-starter), without the space game: start new games from that repo, and port generic improvements made here back to it.
+
 `CLAUDE.md` is the development guide (Claude Code reads it automatically). `docs/SESSION_NOTES.md` records how the starter was built: research sources, design reasoning, what was tried and dropped, and how it was verified.
 
 ## Quick start

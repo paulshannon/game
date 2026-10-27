@@ -209,6 +209,9 @@ Tools find Godot via `$GODOT`, then `.tools/godot`, then `godot` on PATH, and wa
 5. `tools/export.sh web`, test in two browser tabs plus one phone. Restart the server once while connected: the page must show Rejoin and work after it.
 6. Only then: polish, prediction, lobbies.
 
+### Shared code lives in the starter too
+The framework (everything outside `games/space/`, its tests and its Kenney packs) also lives in [paulshannon/game-starter](https://github.com/paulshannon/game-starter), the repo new games are copied from. When a change here would help any game (a fix in `common/`/`client/`, a tool, CI, deploy, a gotcha in this file), port it to game-starter as well, in its own PR there. Generic pieces first written for space (e.g. the `SpaceEntity` ghost pattern) move there, renamed without the `Space` prefix, once a second game needs them. Keep shared code free of space class names so it ports cleanly.
+
 ### Branches, commits and releases (git-flow; README "Branches and releases")
 - Work on `feature/<issue>-<slug>` branched from `develop`, in small logical commits, each passing `tools/check.sh` + `tools/test.sh`. Open the PR into `develop`. **Never push directly to `main` or `develop`**, even if a hook or a habit suggests it; they're protected anyway.
 - Cut releases only when asked: `release/vX.Y.Z` from `develop`, bump `config/version` in `project.godot` and the `CHANGELOG.md` heading together, PR into `main`, tag `vX.Y.Z` on the merge, merge back into `develop`. Add user-visible changes to **Unreleased** in `CHANGELOG.md` as you go.
